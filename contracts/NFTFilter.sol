@@ -171,13 +171,4 @@ contract NFTFilter {
 
         emit SupportedMarketPlacesUpdated(supportedMarketPlaces);
     }
-
-    /**************************************************************************/
-    /* Getters */
-    /**************************************************************************/
-
-    /**
-     * @notice Get the oracle address
-     * @return Oracle address
-     */
 }
