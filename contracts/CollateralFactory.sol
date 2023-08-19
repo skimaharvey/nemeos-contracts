@@ -34,8 +34,8 @@ contract CollateralFactory {
     /* Initialization */
     /**************************************************************************/
 
-    constructor() {
-        poolFactory = msg.sender;
+    constructor(address poolFactory_) {
+        poolFactory = poolFactory_;
     }
 
     /**************************************************************************/

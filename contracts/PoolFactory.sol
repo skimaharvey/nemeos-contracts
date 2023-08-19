@@ -1,18 +1,20 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
+// Contracts
 import {CollateralFactory} from "./CollateralFactory.sol";
+
+// interfaces
 import {IPool} from "./interfaces/IPool.sol";
 
 // libraries
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
-import "@openzeppelin/contracts/proxy/Clones.sol";
-import "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
-import "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+
+import {
+    ERC1967Upgrade
+} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
@@ -65,6 +67,11 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      * @notice Collateral factory address
      */
     address public collateralFactory;
+
+    /**
+     * @notice Liquidator address
+     */
+    address liquidator;
 
     /**
      * @notice Pool implementation address
@@ -141,7 +148,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         address poolInstance = Clones.clone(poolImplementation);
 
         /* Initialize pool */
-        IPool(poolInstance).initialize(collection_, ltv_, collectionWrapper);
+        IPool(poolInstance).initialize(collection_, ltv_, collectionWrapper, liquidator);
 
         /* Add pool to registry */
         _pools.add(poolInstance);
