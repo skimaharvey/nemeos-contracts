@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.19;
 
+import {CollateralFactory} from "./CollateralFactory.sol";
+import {IPool} from "./interfaces/IPool.sol";
+
+// libraries
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -9,11 +13,7 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {
-    Initializable
-} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-
-
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title PoolFactory
@@ -22,21 +22,68 @@ import {
 contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    /**************************************************************************/
+    /* Events */
+    /**************************************************************************/
+
     /**
      * @notice Emitted when a pool is created
-     * @param pool Pool instance
-     * @param implementation Implementation contract
+     * @param collection Collection address
+     * @param ltv Loan to value ratio
+     * @param deployer Pool deployer address
      */
-    event PoolCreated(address indexed pool, address indexed implementation);
+    event PoolCreated(address indexed collection, uint256 ltv, address indexed deployer);
 
+    /**
+     * @notice Emitted when the allowed loan to value ratios are updated
+     * @param allowedLtv New allowed loan to value ratios
+     */
+    event UpdateAllowedLtv(uint256[] allowedLtv);
 
+    /**
+     * @notice Emitted when the collateral factory is updated
+     * @param collateralFactory New collateral factory address
+     */
+    event UpdateCollateralFactory(address indexed collateralFactory);
+
+    /**
+     * @notice Emitted when the pool implementation is updated
+     * @param poolImplementation New pool implementation address
+     */
+    event UpdatePoolImplementation(address indexed poolImplementation);
+
+    /**************************************************************************/
+    /* States */
+    /**************************************************************************/
+
+    /**
+     * @notice Allowed loan to value ratio
+     */
+    uint256[] allowedLtv;
+
+    /**
+     * @notice Collateral factory address
+     */
+    address public collateralFactory;
+
+    /**
+     * @notice Pool implementation address
+     */
+    address public poolImplementation;
 
     /**
      * @notice Set of deployed pools
      */
     EnumerableSet.AddressSet private _pools;
 
+    /**
+     * @notice Mapping of collection address to ltv to pool address
+     */
+    mapping(address => mapping(uint256 => address)) public poolByCollectionAndLtv;
 
+    /**************************************************************************/
+    /* Initialize */
+    /**************************************************************************/
 
     /**
      * @notice PoolFactory constructor
@@ -46,36 +93,64 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         _disableInitializers();
     }
 
-
-
     /**
      * @notice PoolFactory initializator
      */
-    function initialize() onlyInitializing external {
-        _transferOwnership(msg.sender);
+    function initialize(address factoryOwner_) external onlyInitializing {
+        _transferOwnership(factoryOwner_);
     }
 
+    /**************************************************************************/
+    /* Implementation */
+    /**************************************************************************/
 
     /**
      * Create a 1167 proxy pool instance
-     * @param poolImplementation Pool implementation contract
-     * @param params Pool parameters
+     * @param collection_ Collection address
+     * @param ltv_ Loan to value ratio
      * @return Pool address
      */
-    function create(address poolImplementation, bytes calldata params) external returns (address) {
+    function createPool(address collection_, uint256 ltv_) external returns (address) {
+        address collateralFactoryAddress = collateralFactory;
+        /* Check that collateral factory is set */
+        require(collateralFactoryAddress != address(0), "PoolFactory: Collateral factory not set");
+
+        /* Check that pool implementation is set */
+        require(poolImplementation != address(0), "PoolFactory: Pool implementation not set");
+
+        /* Check that ltv is allowed */
+        require(_verifyLtv(ltv_), "PoolFactory: LTV not allowed");
+
+        /* Check if pool already exists */
+        require(
+            poolByCollectionAndLtv[collection_][ltv_] == address(0),
+            "PoolFactory: Pool already exists"
+        );
+
+        /* Check if collection already registered in collateral factory, if not create it */
+        address collectionWrapper = CollateralFactory(collateralFactoryAddress).collateralWrapper(
+            collection_
+        );
+        if (collectionWrapper == address(0)) {
+            collectionWrapper = CollateralFactory(collateralFactoryAddress).deployCollateralWrapper(
+                collection_
+            );
+        }
+
         /* Create pool instance */
         address poolInstance = Clones.clone(poolImplementation);
-        Address.functionCall(poolInstance, abi.encodeWithSignature("initialize(bytes)", params));
+
+        /* Initialize pool */
+        IPool(poolInstance).initialize(collection_, ltv_, collectionWrapper);
 
         /* Add pool to registry */
         _pools.add(poolInstance);
 
         /* Emit Pool Created */
-        emit PoolCreated(poolInstance, poolImplementation);
+        emit PoolCreated(collection_, ltv_, msg.sender);
 
         return poolInstance;
     }
-
 
     /**
      * @notice Check if address is a pool
@@ -94,7 +169,6 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         return _pools.values();
     }
 
-
     /**
      * @notice Get count of pools
      * @return Count of pools
@@ -103,17 +177,12 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         return _pools.length();
     }
 
-
-    function getPoolAt(uint256 index) external view returns (address) {
-        return _pools.at(index);
-    }
-
     /**************************************************************************/
     /* Admin API */
     /**************************************************************************/
 
     /**
-     * @notice Get Proxy Implementation
+     * @notice Get Proxy Implementation of the factory
      * @return Implementation address
      */
     function getImplementation() external view returns (address) {
@@ -121,11 +190,46 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     }
 
     /**
-     * @notice Upgrade Proxy
+     * @notice Upgrade Proxy of the factory
      * @param newImplementation New implementation contract
      * @param data Optional calldata
      */
     function upgradeToAndCall(address newImplementation, bytes calldata data) external onlyOwner {
         _upgradeToAndCall(newImplementation, data, false);
+    }
+
+    /**
+     * @notice Update collateral factory address
+     * @param collateralFactory_ New collateral factory address
+     */
+    function updateCollateralFactory(address collateralFactory_) external onlyOwner {
+        collateralFactory = collateralFactory_;
+        emit UpdateCollateralFactory(collateralFactory_);
+    }
+
+    function updatePoolImplementation(address poolImplementation_) external onlyOwner {
+        poolImplementation = poolImplementation_;
+
+        emit UpdatePoolImplementation(poolImplementation_);
+    }
+
+    function updateAllowedLtv(uint256[] calldata allowedLtv_) external onlyOwner {
+        allowedLtv = allowedLtv_;
+
+        emit UpdateAllowedLtv(allowedLtv_);
+    }
+
+    /**************************************************************************/
+    /* Internals */
+    /**************************************************************************/
+
+    function _verifyLtv(uint256 ltv_) internal view returns (bool) {
+        for (uint256 i = 0; i < allowedLtv.length; i++) {
+            if (allowedLtv[i] == ltv_) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
