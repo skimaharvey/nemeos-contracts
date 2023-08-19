@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
 // interfaces
@@ -236,7 +236,7 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
         uint256 startedAt,
         uint256 endingAt,
         uint256 startingPrice
-    ) internal view returns (uint) {
+    ) internal view returns (uint256) {
         uint256 duration = endingAt - startedAt;
         uint256 timeElapsed = block.timestamp - startedAt;
 
