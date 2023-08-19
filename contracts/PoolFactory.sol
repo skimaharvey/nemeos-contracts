@@ -96,8 +96,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**
      * @notice PoolFactory initializator
      */
-    function initialize() external onlyInitializing {
-        _transferOwnership(msg.sender);
+    function initialize(address factoryOwner_) external onlyInitializing {
+        _transferOwnership(factoryOwner_);
     }
 
     /**************************************************************************/
@@ -182,7 +182,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**************************************************************************/
 
     /**
-     * @notice Get Proxy Implementation
+     * @notice Get Proxy Implementation of the factory
      * @return Implementation address
      */
     function getImplementation() external view returns (address) {
@@ -190,7 +190,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     }
 
     /**
-     * @notice Upgrade Proxy
+     * @notice Upgrade Proxy of the factory
      * @param newImplementation New implementation contract
      * @param data Optional calldata
      */
