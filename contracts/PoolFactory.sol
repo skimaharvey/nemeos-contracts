@@ -89,7 +89,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     mapping(address => mapping(uint256 => address)) public poolByCollectionAndLtv;
 
     /**************************************************************************/
-    /* Initialize */
+    /* Constructor */
     /**************************************************************************/
 
     /**
@@ -99,6 +99,10 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         /* Disable initialization of implementation contract */
         _disableInitializers();
     }
+
+    /**************************************************************************/
+    /* Initializer */
+    /**************************************************************************/
 
     /**
      * @notice PoolFactory initializator
