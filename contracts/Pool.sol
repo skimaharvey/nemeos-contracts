@@ -23,16 +23,11 @@ contract Pool is ERC4626 {
     /* Overridden Vault API */
     /**************************************************************************/
 
-    /** @dev See {IERC4626-totalAssets}.
-     * Was modified to support ETH as an asset, and return the balance of the asset held by the pool.
-     * @return The total value of the assets held by the pool.
+    /** @dev Was created in order to deposit native token into the pool when the asset address is address(0).
      */
-    function totalAssets() public view override returns (uint256) {
-        if (address(_asset) == address(0)) {
-            return address(this).balance;
-        } else {
-            return _asset.balanceOf(address(this));
-        }
+    function depositNativeToken() external payable {
+        require(address(_asset) == address(0), "Pool: asset is not ETH");
+        deposit(msg.value, msg.sender);
     }
 
     /** @dev See {IERC4626-maxWithdraw}.
@@ -47,15 +42,25 @@ contract Pool is ERC4626 {
         }
     }
 
+    /** @dev See {IERC4626-totalAssets}.
+     * Was modified to support ETH as an asset, and return the balance of the asset held by the pool.
+     * @return The total value of the assets held by the pool.
+     */
+    function totalAssets() public view override returns (uint256) {
+        if (address(_asset) == address(0)) {
+            return address(this).balance;
+        } else {
+            return _asset.balanceOf(address(this));
+        }
+    }
+
     function _deposit(
         address caller,
         address receiver,
         uint256 assets,
         uint256 shares
     ) internal override {
-        if (address(_asset) == address(0)) {
-            require(msg.value == assets, "Pool: ETH deposit amount mismatch");
-        } else {
+        if (address(_asset) != address(0)) {
             require(msg.value == 0, "Pool: ETH deposit amount mismatch");
             // If _asset is ERC777, `transferFrom` can trigger a reentrancy BEFORE the transfer happens through the
             // `tokensToSend` hook. On the other hand, the `tokenReceived` hook, that is triggered after the transfer,
@@ -65,9 +70,9 @@ contract Pool is ERC4626 {
             // assets are transferred and before the shares are minted, which is a valid state.
             // slither-disable-next-line reentrancy-no-eth
             SafeERC20.safeTransferFrom(_asset, caller, address(this), assets);
-            _mint(receiver, shares);
         }
 
+        _mint(receiver, shares);
         emit Deposit(caller, receiver, assets, shares);
     }
 
@@ -78,10 +83,6 @@ contract Pool is ERC4626 {
         uint256 assets,
         uint256 shares
     ) internal override {
-        if (caller != owner) {
-            _spendAllowance(owner, caller, shares);
-        }
-
         // If _asset is ERC777, `transfer` can trigger a reentrancy AFTER the transfer happens through the
         // `tokensReceived` hook. On the other hand, the `tokensToSend` hook, that is triggered before the transfer,
         // calls the vault, which is assumed not malicious.
@@ -90,9 +91,13 @@ contract Pool is ERC4626 {
         // shares are burned and after the assets are transferred, which is a valid state.
         _burn(owner, shares);
         if (address(_asset) == address(0)) {
+            require(receiver == owner, "Pool: receiver is not owner");
             // slither-disable-next-line reentrancy-no-eth
             payable(receiver).transfer(assets);
         } else {
+            if (caller != owner) {
+                _spendAllowance(owner, caller, shares);
+            }
             // slither-disable-next-line reentrancy-no-eth
             SafeERC20.safeTransfer(_asset, receiver, assets);
         }
