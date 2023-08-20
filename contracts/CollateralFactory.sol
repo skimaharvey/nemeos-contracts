@@ -6,6 +6,7 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 /**
  * @title Collateral Factory
+ * @author Nemeos
  */
 contract CollateralFactory {
     /**************************************************************************/

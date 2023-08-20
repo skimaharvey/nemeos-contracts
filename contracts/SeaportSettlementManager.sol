@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
+// libraries
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {
     ConsiderationInterface as ISeaport
 } from "../lib/seaport/contracts/interfaces/ConsiderationInterface.sol";
 import {BasicOrderParameters} from "../lib/seaport/contracts/lib/ConsiderationStructs.sol";
 
+/**
+ * @title SeaportSettlementManager
+ * @author Nemeos
+ */
 contract SeaportSettlementManager {
     /**************************************************************************/
     /* Constants */
