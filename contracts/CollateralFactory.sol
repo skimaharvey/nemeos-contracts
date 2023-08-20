@@ -31,7 +31,7 @@ contract CollateralFactory {
     event CollateralWrapperCreated(address indexed collection, address indexed collateralWrapper);
 
     /**************************************************************************/
-    /* Initialization */
+    /* Constructor */
     /**************************************************************************/
 
     constructor(address poolFactory_) {

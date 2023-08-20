@@ -45,12 +45,16 @@ contract CollateralWrapper is ERC721, ReentrancyGuard, Initializable {
     event NFTMinted(uint256 indexed tokenId, address indexed account);
 
     /**************************************************************************/
-    /* Initialization */
+    /* Constructor */
     /**************************************************************************/
 
     constructor() ERC721("Nemeos Wrapper", "NMOSW") {
         _disableInitializers();
     }
+
+    /**************************************************************************/
+    /* Initializer */
+    /**************************************************************************/
 
     function initialize(address collection_, address poolFactory_) external onlyInitializing {
         collection = collection_;
