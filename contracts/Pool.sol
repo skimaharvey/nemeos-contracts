@@ -9,6 +9,56 @@ contract Pool is ERC4626 {
     using Math for uint256;
 
     /**************************************************************************/
+    /* Structs */
+    /**************************************************************************/
+
+    struct Loan {
+        address borrower;
+        address collection;
+        uint256 tokenId;
+        uint256 amountAtStart;
+        uint256 amountOwed;
+        uint256 loanDuration;
+        uint256 interestRate;
+        uint256 startTime;
+        uint256 endTime;
+        uint256 nextPaymentTime;
+        bool isClosed;
+    }
+
+    /**************************************************************************/
+    /* Constants */
+    /**************************************************************************/
+
+    /* The maximum amount of time of a loan  */
+    uint256 MAX_LOAN_DURATION = 90 days;
+
+    /* The maximum amount of time that can pass between loan payments */
+    uint256 MAX_LOAN_REFUND_INTERVAL = 30 days;
+
+    uint256 BASIS_POINTS = 10_000;
+    uint256 public constant MAX_INTEREST_RATE = 100; // 1% per day
+
+    /** @dev The address of the contract in charge of liquidating NFT with unpaid loans.
+     */
+    address public immutable liquidator;
+
+    /** @dev The address of the contract in charge of verifying the validity of the loan request.
+     */
+    address public immutable NFTFilter;
+
+    /** @dev The address of the admin in charge of collecting fees.
+     */
+    address public immutable protocolAdmin;
+
+    /**************************************************************************/
+    /* State */
+    /**************************************************************************/
+
+    /* Number of days you will need to vest for per pecent you are lending at*/
+    uint256 public vestingTimePerPerCentInterest = 3 days;
+
+    /**************************************************************************/
     /* Constructor */
     /**************************************************************************/
     // TODO: add name/symbol logic to factory
@@ -16,8 +66,23 @@ contract Pool is ERC4626 {
         address asset_,
         string memory name_,
         string memory symbol_,
-        address admin_
-    ) ERC4626(IERC20(asset_)) ERC20(name_, symbol_) {}
+        address liquidator_,
+        address NFTFilter_,
+        address protocolFeeCollector_
+    ) ERC4626(IERC20(asset_)) ERC20(name_, symbol_) {
+        require(liquidator_ != address(0), "Pool: liquidator is zero address");
+        require(NFTFilter_ != address(0), "Pool: NFTFilter is zero address");
+        require(protocolFeeCollector_ != address(0), "Pool: protocolFeeCollector is zero address");
+        liquidator = liquidator_;
+        NFTFilter = NFTFilter_;
+        protocolAdmin = protocolFeeCollector_;
+    }
+
+    /**************************************************************************/
+    /* Pool API */
+    /**************************************************************************/
+
+    function buyNFT() external payable {}
 
     /**************************************************************************/
     /* Overridden Vault API */
@@ -76,6 +141,7 @@ contract Pool is ERC4626 {
         emit Deposit(caller, receiver, assets, shares);
     }
 
+    // Todo: add the vesting logic
     function _withdraw(
         address caller,
         address receiver,
@@ -107,4 +173,14 @@ contract Pool is ERC4626 {
     /**************************************************************************/
     /* Admin API */
     /**************************************************************************/
+
+    function updateVestingTimePerPerCentInterest(uint256 vestingTimePerPerCentInterest_) external {
+        require(
+            msg.sender == protocolAdmin,
+            "Pool: Only protocol admin can update vestingTimePerPerCentInterest"
+        );
+        vestingTimePerPerCentInterest = vestingTimePerPerCentInterest_;
+    }
+
+    // TODO: add pause/unpause logic
 }
