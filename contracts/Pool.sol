@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
+// interfaces
+import {INFTFilter} from "./interfaces/INFTFilter.sol";
+
 // libraries
 import {ERC4626, ERC20, Math, SafeERC20} from "./libs/ModifiedERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract Pool is ERC4626 {
+contract Pool is ERC4626, ReentrancyGuard {
     using Math for uint256;
 
     /**************************************************************************/
@@ -29,6 +33,9 @@ contract Pool is ERC4626 {
     /**************************************************************************/
     /* Constants */
     /**************************************************************************/
+
+    /* The minimum loan to value ratio */
+    uint256 public immutable LTV;
 
     /* The maximum amount of time of a loan  */
     uint256 MAX_LOAN_DURATION = 90 days;
@@ -64,6 +71,7 @@ contract Pool is ERC4626 {
     // TODO: add name/symbol logic to factory
     constructor(
         address asset_,
+        uint256 loanToValue_,
         string memory name_,
         string memory symbol_,
         address liquidator_,
@@ -73,6 +81,7 @@ contract Pool is ERC4626 {
         require(liquidator_ != address(0), "Pool: liquidator is zero address");
         require(NFTFilter_ != address(0), "Pool: NFTFilter is zero address");
         require(protocolFeeCollector_ != address(0), "Pool: protocolFeeCollector is zero address");
+        LTV = loanToValue_ * 100; // convert to basis points
         liquidator = liquidator_;
         NFTFilter = NFTFilter_;
         protocolAdmin = protocolFeeCollector_;
@@ -82,7 +91,48 @@ contract Pool is ERC4626 {
     /* Pool API */
     /**************************************************************************/
 
-    function buyNFT() external payable {}
+    function buyNFT(
+        address collectionAddress_,
+        uint256 nftID_,
+        uint256 price_,
+        address settlementManager_,
+        uint256 loanTimestamp_,
+        uint256 loanDuration_,
+        bytes calldata orderExtraData_,
+        bytes calldata oracleSignature_
+    ) external payable nonReentrant {
+        /* check if LTV is respected wit msg.value*/
+        uint256 loanDepositLTV = (msg.value * BASIS_POINTS) / price_;
+        require(loanDepositLTV >= LTV, "Pool: LTV not respected");
+
+        uint256 remainingLoanAmount = price_ - msg.value;
+
+        /* check if pool has enough */
+        require(remainingLoanAmount <= totalAssets(), "Pool: not enough assets");
+
+        /* check if the loan duration is not too long */
+        require(loanDuration_ <= MAX_LOAN_DURATION, "Pool: loan duration too long");
+
+        //todo: create internal that will split paiements in n parts depending on the loan duration
+
+        /* check if the NFT is valid and the price is correct (NFTFilter) */
+        require(
+            INFTFilter(NFTFilter).verifyLoanValidity(
+                collectionAddress_,
+                nftID_,
+                price_,
+                msg.sender,
+                marketPlaceAddress_,
+                loanTimestamp_,
+                orderExtraData_,
+                oracleSignature_
+            ),
+            "Pool: NFT loan not accepted"
+        );
+
+        ISettlementManager(settlementManager_).
+
+    }
 
     /**************************************************************************/
     /* Overridden Vault API */
