@@ -20,9 +20,9 @@ contract NFTFilter {
     uint256 constant LOAN_EXPIRATION_TIME = 3 minutes;
 
     /**
-     * @notice Supported marketplaces addresses
+     * @notice Supported settlement managers addresses
      */
-    address[] public supportedMarketPlaces;
+    address[] public supportedSettlementManagers;
 
     /**
      * @notice address of the Oracle
@@ -52,10 +52,10 @@ contract NFTFilter {
     event OracleUpdated(address oracle);
 
     /**
-     * @notice Emitted when the supported marketplaces are updated
-     * @param supportedMarketPlaces New supported marketplaces
+     * @notice Emitted when the supported settlement managers are updated
+     * @param supportedSettlementManagers New supported settlement managers
      */
-    event SupportedMarketPlacesUpdated(address[] supportedMarketPlaces);
+    event supportedSettlementManagersUpdated(address[] supportedSettlementManagers);
 
     /**
      * @notice Emitted when a loan is verified
@@ -63,7 +63,7 @@ contract NFTFilter {
      * @param nftID_ ID of the NFT
      * @param price_ Price of the NFT
      * @param customerAddress_ Address of the customer
-     * @param marketplaceAddress_ Address of the marketplace
+     * @param settlementManager_ Address of the settlement manager
      * @param loanTimestamp_ Timestamp of the loan
      */
     event LoanVerified(
@@ -71,7 +71,7 @@ contract NFTFilter {
         uint256 nftID_,
         uint256 price_,
         address customerAddress_,
-        address marketplaceAddress_,
+        address settlementManager_,
         uint256 loanTimestamp_
     );
 
@@ -79,10 +79,14 @@ contract NFTFilter {
     /* Constructor */
     /**************************************************************************/
 
-    constructor(address oracle_, address protocolAdmin_, address[] memory supportedMarketPlaces_) {
+    constructor(
+        address oracle_,
+        address protocolAdmin_,
+        address[] memory supportedSettlementManagers_
+    ) {
         oracle = oracle_;
         protocolAdmin = protocolAdmin_;
-        supportedMarketPlaces = supportedMarketPlaces_;
+        supportedSettlementManagers = supportedSettlementManagers_;
     }
 
     /**************************************************************************/
@@ -94,22 +98,23 @@ contract NFTFilter {
         uint256 nftID_,
         uint256 price_,
         address customerAddress_,
-        address marketplaceAddress_,
+        address settlementManager_,
         uint256 loanTimestamp_,
+        bytes calldata orderExtraData_,
         bytes memory signature
     ) external returns (bool isValid) {
         /* check that loan is not expired */
         require(block.timestamp < loanTimestamp_ + LOAN_EXPIRATION_TIME, "NFTFilter: Loan expired");
 
-        /* check that marketplace is supported */
-        bool isSupportedMarketplace;
-        for (uint256 i = 0; i < supportedMarketPlaces.length; i++) {
-            if (supportedMarketPlaces[i] == marketplaceAddress_) {
-                isSupportedMarketplace = true;
+        /* check that settlement manager is supported */
+        bool isSupportedSettlementManager;
+        for (uint256 i = 0; i < supportedSettlementManagers.length; i++) {
+            if (supportedSettlementManagers[i] == settlementManager_) {
+                isSupportedSettlementManager = true;
                 break;
             }
         }
-        require(isSupportedMarketplace, "NFTFilter: Marketplace not supported");
+        require(isSupportedSettlementManager, "NFTFilter: Settlement Manager not supported");
 
         /* get customer nonce and increase it by one*/
         uint256 nonce = customerNonces[customerAddress_]++;
@@ -121,7 +126,8 @@ contract NFTFilter {
             price_,
             customerAddress_,
             nonce,
-            loanTimestamp_
+            loanTimestamp_,
+            orderExtraData_
         );
 
         // todo: check if we will use this address or the pool to verify the signature
@@ -139,7 +145,7 @@ contract NFTFilter {
             nftID_,
             price_,
             customerAddress_,
-            marketplaceAddress_,
+            settlementManager_,
             loanTimestamp_
         );
     }
@@ -160,16 +166,18 @@ contract NFTFilter {
     }
 
     /**
-     * @notice Update the supported marketplaces
-     * @param supportedMarketPlaces_ New supported marketplaces
+     * @notice Update the supported settlement managers
+     * @param supportedSettlementManagers_ New supported settlement managers
      */
-    function updateSupportedMarketPlaces(address[] memory supportedMarketPlaces_) external {
+    function updatesupportedSettlementManagers(
+        address[] memory supportedSettlementManagers_
+    ) external {
         require(
             msg.sender == protocolAdmin,
-            "NFTFilter: Only protocol admin can update supportedMarketPlaces"
+            "NFTFilter: Only protocol admin can update supportedSettlementManagers"
         );
-        supportedMarketPlaces = supportedMarketPlaces_;
+        supportedSettlementManagers = supportedSettlementManagers_;
 
-        emit SupportedMarketPlacesUpdated(supportedMarketPlaces);
+        emit supportedSettlementManagersUpdated(supportedSettlementManagers);
     }
 }
