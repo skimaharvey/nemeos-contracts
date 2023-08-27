@@ -18,6 +18,28 @@ import {
  */
 contract SeaportSettlementManager {
     /**************************************************************************/
+    /* Structs */
+    /**************************************************************************/
+
+    struct PartialBasicOrderParameters {
+        address considerationToken;
+        uint256 considerationIdentifier;
+        address payable offerer;
+        address zone;
+        uint256 offerAmount;
+        BasicOrderType basicOrderType;
+        uint256 startTime;
+        uint256 endTime;
+        bytes32 zoneHash;
+        uint256 salt;
+        bytes32 offererConduitKey;
+        bytes32 fulfillerConduitKey;
+        uint256 totalOriginalAdditionalRecipients;
+        AdditionalRecipient[] additionalRecipients;
+        bytes signature;
+    }
+
+    /**************************************************************************/
     /* Constants */
     /**************************************************************************/
 
@@ -42,6 +64,9 @@ contract SeaportSettlementManager {
         bytes calldata orderExtraData_
     ) external payable {
         /**  orderExtraData_ is the encoded BasicOrderParameters struct minus the collectionAddress_ & tokenId_ :
+         * address considerationToken,
+         * uint256 considerationIdentifier,
+         * address offerer
          * address zone
          * address offerToken
          * uint256 offerAmount
@@ -52,52 +77,42 @@ contract SeaportSettlementManager {
          * bytes32 zoneHash
          * uint256 salt
          * bytes32 offererConduitKey
-         * uint256 totalOriginalAdditionalRecipients; // 0x204
-         * AdditionalRecipient[] additionalRecipients; // 0x224
-         * bytes signature;
+         * uint256 totalOriginalAdditionalRecipients
+         * AdditionalRecipient[] additionalRecipients
+         * bytes signature
          */
 
-        (
-            address considerationToken,
-            uint256 considerationIdentifier,
-            // uint256 considerationAmount,
-            address offerer,
-            address zone,
-            address offerToken,
-            uint256 offerAmount,
-            uint256 offerIdentifier,
-            BasicOrderType basicOrderType,
-            uint256 startTime,
-            uint256 endTime,
-            bytes32 zoneHash,
-            uint256 salt,
-            bytes32 offererConduitKey,
-            uint256 totalOriginalAdditionalRecipients,
-            AdditionalRecipient[] additionalRecipients,
-            bytes signature
-        ) = abi.decode(
-                orderExtraData_,
-                (
-                    address, // offerer,
-                    address, // zone,
-                    address, // offerToken,
-                    uint256, // offerAmount,
-                    uint256,
-                    BasicOrderType,
-                    uint256,
-                    uint256,
-                    bytes32,
-                    uint256,
-                    bytes32,
-                    uint256,
-                    AdditionalRecipient[],
-                    bytes
-                )
-            );
+        PartialBasicOrderParameters memory partialBasicOrderParameters = abi.decode(
+            orderExtraData_,
+            (PartialBasicOrderParameters)
+        );
 
-        // BasicOrderParameters memory params = abi.decode(_order, (BasicOrderParameters));
-        // TODO: investigate Seaport execution as this might be wrong. params receiver should be the pool address
-        // need to check what happens when sending too much value and possibly refund the pool
-        SEAPORT.fulfillBasicOrder{value: msg.value}(params);
+        BasicOrderParameters memory buyParams = BasicOrderParameters(
+            partialBasicOrderParameters.considerationToken,
+            partialBasicOrderParameters.considerationIdentifier,
+            msg.value,
+            partialBasicOrderParameters.offerer,
+            partialBasicOrderParameters.zone,
+            collectionAddress_,
+            partialBasicOrderParameters.offerAmount,
+            tokenId_,
+            partialBasicOrderParameters.basicOrderType,
+            partialBasicOrderParameters.startTime,
+            partialBasicOrderParameters.endTime,
+            partialBasicOrderParameters.zoneHash,
+            partialBasicOrderParameters.salt,
+            partialBasicOrderParameters.offererConduitKey,
+            partialBasicOrderParameters.fulfillerConduitKey,
+            partialBasicOrderParameters.totalOriginalAdditionalRecipients,
+            partialBasicOrderParameters.additionalRecipients,
+            partialBasicOrderParameters.signature
+        );
+
+        // // TODO: investigate Seaport execution as this might be wrong. params receiver should be the pool address
+        // // need to check what happens when sending too much value and possibly refund the pool
+        SEAPORT.fulfillBasicOrder{value: msg.value}(buyParams);
+
+        /* transfer NFT to pool */
+        IERC721(collectionAddress_).safeTransferFrom(address(this), msg.sender, tokenId_);
     }
 }
