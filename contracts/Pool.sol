@@ -53,13 +53,13 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     /* The minimum amount of time of a loan  */
-    uint256 MIN_LOAN_DURATION = 1 days;
+    uint256 constant MIN_LOAN_DURATION = 1 days;
 
     /* The maximum amount of time of a loan  */
-    uint256 MAX_LOAN_DURATION = 90 days;
+    uint256 constant MAX_LOAN_DURATION = 90 days;
 
     /* The maximum amount of time that can pass between loan payments */
-    uint256 MAX_LOAN_REFUND_INTERVAL = 30 days;
+    uint256 constant MAX_LOAN_REFUND_INTERVAL = 30 days;
 
     uint256 public constant BASIS_POINTS = 10_000;
 
@@ -164,6 +164,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     // todo: add the logic that verify user agrees with total amount to be paid back (may be with slippage)
+    // todo: add settlement manager logic (see with team)
     function buyNFT(
         address collectionAddress_,
         uint256 tokenId_,
@@ -215,7 +216,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         );
 
         /* buy the NFT */
-        ISettlementManager(settlementManager_).executeBuy(
+        ISettlementManager(settlementManager_).executeBuy{value: price_}(
             collectionAddress_,
             tokenId_,
             orderExtraData_
