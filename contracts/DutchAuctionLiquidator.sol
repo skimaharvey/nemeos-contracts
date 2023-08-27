@@ -188,7 +188,7 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
         IPool(liquidation.pool).refundFromLiquidation{value: msg.value}(liquidation.tokenId);
 
         /* Transfer collateral to winner */
-        IERC721(collateralToken).safeTransferFrom(address(this), msg.sender, collateralTokenId, "");
+        IERC721(collateralToken).safeTransferFrom(address(this), msg.sender, collateralTokenId);
     }
 
     /**************************************************************************/
