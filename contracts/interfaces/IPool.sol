@@ -2,6 +2,16 @@
 pragma solidity 0.8.19;
 
 interface IPool {
+    function depositERC20(
+        uint256 assets,
+        uint256 dailyInterestRate_
+    ) external payable returns (uint256);
+
+    function depositNativeTokens(
+        address receiver,
+        uint256 dailyInterestRate_
+    ) external payable returns (uint256);
+
     function initialize(
         address nftCollection_,
         address asset_,

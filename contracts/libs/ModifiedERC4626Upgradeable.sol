@@ -281,7 +281,7 @@ abstract contract ERC4626Upgradeable is Initializable, ERC20Upgradeable, IERC462
     }
 
     function _decimalsOffset() internal view virtual returns (uint8) {
-        return 0;
+        return 6;
     }
 
     /**

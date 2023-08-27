@@ -70,7 +70,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     uint256 public ltvInBPS;
 
     /* The NFT collection address that this pool lends for */
-    address nftCollection;
+    address public nftCollection;
 
     /** @dev The address of the contract in charge of liquidating NFT with unpaid loans.
      */
@@ -437,16 +437,38 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
     /** @dev Was created in order to deposit native token into the pool when the asset address is address(0).
      */
-    function depositNativeTokens(uint256 dailyInterestRate_) external payable returns (uint256) {
+    function depositNativeTokens(
+        address receiver,
+        uint256 dailyInterestRate_
+    ) external payable returns (uint256) {
         require(address(_asset) == address(0), "Pool: asset is not ETH");
+        require(msg.value > 0, "Pool: msg.value is 0");
+        /* check that max daily interest is respected */
+        require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
 
+        require(msg.value <= maxDeposit(receiver), "ERC4626: deposit more than max");
+
+        uint256 shares = previewDeposit(msg.value);
+
+        /* update the daily interest rate with current one */
+        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
+
+        _deposit(_msgSender(), receiver, msg.value, shares);
+
+        return shares;
+    }
+
+    function depositERC20(
+        uint256 assets,
+        uint256 dailyInterestRate_
+    ) external payable returns (uint256) {
         /* check that max daily interest is respected */
         require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
 
         _updateVestingTime(dailyInterestRate_);
 
         /* return the shares minted */
-        uint256 shares = deposit(msg.value, msg.sender);
+        uint256 shares = deposit(assets, msg.sender);
 
         /* update the daily interest rate */
         _updateDailyInterestRateOnDeposit(dailyInterestRate_, shares);
@@ -471,7 +493,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 dailyInterestRate_,
         uint256 newShares_
     ) internal {
-        uint256 previousNumberOfShares = totalSupply() - newShares_;
+        uint256 previousNumberOfShares = totalSupply();
         uint256 currentDailyInterestRate = dailyInterestRate;
 
         // todo: check calculation

@@ -60,7 +60,12 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**
      * @notice Allowed loan to value ratio
      */
-    uint256[] allowedLtv;
+    uint256[] public allowedLtv;
+
+    /**
+     * @notice Allowed NFT filters
+     */
+    address[] public allowedNFTFilters;
 
     /**
      * @notice Collateral factory address
@@ -131,7 +136,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      * @param assets_ Assets address for the pool (address(0) for ETH)
      * @param ltvInBPS_ Loan to value ratio
      * @param initialDailyInterestRateInBPS_ Initial daily interest rate
-     * @param wrappedNFT_ Wrapped NFT address
+     * @param nftFilter_ NFT filter address
      * @param liquidator_ Liquidator address
      * @return Pool address
      */
@@ -140,7 +145,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         address assets_,
         uint256 ltvInBPS_,
         uint256 initialDailyInterestRateInBPS_,
-        address wrappedNFT_,
+        uint256 initialDeposit_,
+        address nftFilter_,
         address liquidator_
     ) external payable returns (address) {
         address collateralFactoryAddress = collateralFactory;
@@ -159,6 +165,9 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
             poolByCollectionAndLtv[collection_][ltvInBPS_] == address(0),
             "PoolFactory: Pool already exists"
         );
+
+        /* Check if nft filter is allowed */
+        require(_verifyNFTFilter(nftFilter_), "PoolFactory: NFT filter not allowed");
 
         /* Check if collection already registered in collateral factory, if not create it */
         address collectionWrapper = CollateralFactory(collateralFactoryAddress).collateralWrapper(
@@ -179,13 +188,27 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
             assets_,
             ltvInBPS_,
             initialDailyInterestRateInBPS_,
-            wrappedNFT_,
             collectionWrapper,
             liquidator_,
+            nftFilter_,
             protocolFeeCollector
         );
 
-        /* should deposit in the Pool in order to avoid inflation attack */
+        /* should deposit in the Pool in order to avoid inflation attack todo: double check safety */
+
+        if (assets_ == address(0)) {
+            require(
+                msg.value > 0 && msg.value == initialDeposit_,
+                "PoolFactory: ETH deposit required to be equal to initial deposit"
+            );
+            IPool(poolInstance).depositNativeTokens{value: msg.value}(
+                msg.sender,
+                initialDailyInterestRateInBPS_
+            );
+        } else {
+            require(msg.value == 0, "PoolFactory: ETH deposit not allowed");
+            IPool(poolInstance).depositERC20(initialDeposit_, initialDailyInterestRateInBPS_);
+        }
 
         /* Add pool to registry */
         _pools.add(poolInstance);
@@ -248,6 +271,10 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         emit UpdateAllowedLtv(allowedLtv_);
     }
 
+    function updateAllowedNFTFilters(address[] calldata allowedNFTFilters_) external onlyOwner {
+        allowedNFTFilters = allowedNFTFilters_;
+    }
+
     function updateProtocolFeeCollector(address protocolFeeCollector_) external onlyOwner {
         protocolFeeCollector = protocolFeeCollector_;
     }
@@ -274,6 +301,16 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     function _verifyLtv(uint256 ltv_) internal view returns (bool) {
         for (uint256 i = 0; i < allowedLtv.length; i++) {
             if (allowedLtv[i] == ltv_) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function _verifyNFTFilter(address nftFilter_) internal view returns (bool) {
+        for (uint256 i = 0; i < allowedNFTFilters.length; i++) {
+            if (allowedNFTFilters[i] == nftFilter_) {
                 return true;
             }
         }
