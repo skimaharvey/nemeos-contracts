@@ -55,6 +55,8 @@ contract Pool is ERC4626, ReentrancyGuard {
     uint256 MAX_LOAN_REFUND_INTERVAL = 30 days;
 
     uint256 BASIS_POINTS = 10_000;
+
+    // todo: make it updateable by admin
     uint256 public constant MAX_INTEREST_RATE = 100; // 1% per day
 
     /** @dev The address of the contract in charge of liquidating NFT with unpaid loans.
@@ -83,11 +85,20 @@ contract Pool is ERC4626, ReentrancyGuard {
     /* The daily interest rate */
     uint256 public dailyInterestRate;
 
+    /* The daily interest rate per lender */
+    mapping(address => uint256) public dailyInterestRatePerLender;
+
     /* Loans */
     mapping(bytes32 => Loan) public loans;
 
     /* All the ongoing loans */
     EnumerableSet.Bytes32Set private _ongoingLoans;
+
+    /* All ongoing liquidations */
+    EnumerableSet.Bytes32Set private _ongoingLiquidations;
+
+    /* Vesting time per borrower */
+    mapping(address => uint256) public vestingTimePerBorrower;
 
     /**************************************************************************/
     /* Constructor */
@@ -390,14 +401,92 @@ contract Pool is ERC4626, ReentrancyGuard {
 
     /** @dev Was created in order to deposit native token into the pool when the asset address is address(0).
      */
-    function depositNativeToken() external payable {
+    function depositNativeToken(uint256 dailyInterestRate_) external payable returns (uint256) {
         require(address(_asset) == address(0), "Pool: asset is not ETH");
-        deposit(msg.value, msg.sender);
+
+        /* check that max daily interest is respected */
+        require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
+
+        _updateVestingTime(dailyInterestRate_);
+
+        /* return the shares minted */
+        uint256 shares = deposit(msg.value, msg.sender);
+
+        /* update the daily interest rate */
+        _updateDailyInterestRateOnDeposit(dailyInterestRate_, shares);
+
+        return shares;
+    }
+
+    /** @dev See {IERC4626-withdraw}. */
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public override returns (uint256) {
+        /* check that vesting time is respected */
+        require(
+            block.timestamp >= vestingTimePerBorrower[owner],
+            "Pool: vesting time not respected"
+        );
+
+        require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
+
+        uint256 shares = previewWithdraw(assets);
+
+        _updateDailyInterestRateOnWithdrawal(balanceOf(owner));
+
+        _withdraw(_msgSender(), receiver, owner, assets, shares);
+
+        return shares;
     }
 
     /**************************************************************************/
     /* Lender Internals API */
     /**************************************************************************/
+
+    function _updateVestingTime(uint256 dailyInterestRate_) internal {
+        uint256 currentVestingTime = vestingTimePerBorrower[msg.sender];
+        uint256 newVestingTime = (dailyInterestRate_ * vestingTimePerPerCentInterest) /
+            BASIS_POINTS;
+        if (currentVestingTime < newVestingTime) {
+            vestingTimePerBorrower[msg.sender] = newVestingTime;
+        }
+    }
+
+    function _updateDailyInterestRateOnDeposit(
+        uint256 dailyInterestRate_,
+        uint256 newShares_
+    ) internal {
+        uint256 previousNumberOfShares = totalSupply() - newShares_;
+        uint256 currentDailyInterestRate = dailyInterestRate;
+
+        // todo: check calculation
+        uint256 newDailyInterestRate = ((currentDailyInterestRate * previousNumberOfShares) +
+            (dailyInterestRate_ * newShares_)) / (previousNumberOfShares + newShares_);
+
+        /* Update the daily interest rate for this specific lender */
+        dailyInterestRatePerLender[msg.sender] = dailyInterestRate_;
+
+        /* Update the daily interest rate of the pool */
+        dailyInterestRate = newDailyInterestRate;
+    }
+
+    function _updateDailyInterestRateOnWithdrawal(uint256 burntShares) internal {
+        uint256 totalShares = totalSupply();
+        uint256 currentDailyInterestRate = dailyInterestRate;
+
+        uint256 newDailyInterestRate = ((currentDailyInterestRate * totalShares) -
+            (dailyInterestRatePerLender[msg.sender] * burntShares)) / (totalShares - burntShares);
+
+        /* If all shares of msg.sender are burnt, set their daily interest rate to 0 */
+        if (burntShares == totalShares) {
+            dailyInterestRatePerLender[msg.sender] = 0;
+        }
+
+        /* Update the daily interest rate of the pool */
+        dailyInterestRate = newDailyInterestRate;
+    }
 
     /**************************************************************************/
     /* Overridden Vault API */
