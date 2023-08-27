@@ -8,15 +8,23 @@ import {ICollateralWrapper} from "./interfaces/ICollateralWrapper.sol";
 import {ICollateralLiquidator} from "./interfaces/ICollateralLiquidator.sol";
 
 // libraries
-import {ERC4626, ERC20, Math, SafeERC20} from "./libs/ModifiedERC4626.sol";
+import {
+    ERC4626Upgradeable,
+    ERC20Upgradeable,
+    SafeERC20Upgradeable,
+    IERC20Upgradeable,
+    MathUpgradeable
+} from "./libs/ModifiedERC4626Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 // todo: make this contract a non upgradable proxy
-contract Pool is ERC4626, ReentrancyGuard {
-    using Math for uint256;
+contract Pool is ERC4626Upgradeable, ReentrancyGuard {
+    using MathUpgradeable for uint256;
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     /**************************************************************************/
@@ -40,11 +48,11 @@ contract Pool is ERC4626, ReentrancyGuard {
     }
 
     /**************************************************************************/
-    /* Constants */
+    /* State (not updatable) */
     /**************************************************************************/
 
     /* The minimum loan to value ratio */
-    uint256 public immutable LTV;
+    uint256 public LTV;
 
     /* The minimum amount of time of a loan  */
     uint256 MIN_LOAN_DURATION = 1 days;
@@ -62,19 +70,19 @@ contract Pool is ERC4626, ReentrancyGuard {
 
     /** @dev The address of the contract in charge of liquidating NFT with unpaid loans.
      */
-    address public immutable liquidator;
+    address public liquidator;
 
     /** @dev The address of the contract in charge of wrapping NFTs.
      */
-    address public immutable wrappedNFT;
+    address public wrappedNFT;
 
     /** @dev The address of the contract in charge of verifying the validity of the loan request.
      */
-    address public immutable NFTFilter;
+    address public NFTFilter;
 
     /** @dev The address of the admin in charge of collecting fees.
      */
-    address public immutable protocolAdmin;
+    address public protocolAdmin;
 
     /**************************************************************************/
     /* State */
@@ -105,17 +113,25 @@ contract Pool is ERC4626, ReentrancyGuard {
     /* Constructor */
     /**************************************************************************/
     // TODO: add name/symbol logic to factory
-    constructor(
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**************************************************************************/
+    /* Initializer */
+    /**************************************************************************/
+
+    function initialize(
         address asset_,
         uint256 loanToValueinBPS_,
         uint256 initialDailyInterestRateinBPS_,
-        string memory name_,
-        string memory symbol_,
         address wrappedNFT_,
         address liquidator_,
         address NFTFilter_,
-        address protocolFeeCollector_
-    ) ERC4626(IERC20(asset_)) ERC20(name_, symbol_) {
+        address protocolFeeCollector_,
+        string memory name_,
+        string memory symbol_
+    ) external initializer {
         require(liquidator_ != address(0), "Pool: liquidator is zero address");
         require(NFTFilter_ != address(0), "Pool: NFTFilter is zero address");
         require(protocolFeeCollector_ != address(0), "Pool: protocolFeeCollector is zero address");
@@ -125,6 +141,9 @@ contract Pool is ERC4626, ReentrancyGuard {
         liquidator = liquidator_;
         NFTFilter = NFTFilter_;
         protocolAdmin = protocolFeeCollector_;
+
+        __ERC4626_init(IERC20Upgradeable(asset_));
+        __ERC20_init(name_, symbol_);
     }
 
     /**************************************************************************/
@@ -514,7 +533,7 @@ contract Pool is ERC4626, ReentrancyGuard {
      * Was modified to return the was is widrawable depending on the balance held by the pool.
      */
     function maxWithdraw(address owner) public view override returns (uint256) {
-        uint256 expectedBalance = _convertToAssets(balanceOf(owner), Math.Rounding.Down);
+        uint256 expectedBalance = _convertToAssets(balanceOf(owner), MathUpgradeable.Rounding.Down);
         if (expectedBalance >= totalAssets()) {
             return totalAssets();
         } else {
@@ -549,7 +568,7 @@ contract Pool is ERC4626, ReentrancyGuard {
             // Conclusion: we need to do the transfer before we mint so that any reentrancy would happen before the
             // assets are transferred and before the shares are minted, which is a valid state.
             // slither-disable-next-line reentrancy-no-eth
-            SafeERC20.safeTransferFrom(_asset, caller, address(this), assets);
+            SafeERC20Upgradeable.safeTransferFrom(_asset, caller, address(this), assets);
         }
 
         _mint(receiver, shares);
@@ -581,7 +600,7 @@ contract Pool is ERC4626, ReentrancyGuard {
                 _spendAllowance(owner, caller, shares);
             }
             // slither-disable-next-line reentrancy-no-eth
-            SafeERC20.safeTransfer(_asset, receiver, assets);
+            SafeERC20Upgradeable.safeTransfer(_asset, receiver, assets);
         }
         emit Withdraw(caller, receiver, owner, assets, shares);
     }

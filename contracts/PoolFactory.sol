@@ -119,9 +119,14 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      * Create a 1167 proxy pool instance
      * @param collection_ Collection address
      * @param ltv_ Loan to value ratio
+     * @param assets_ Assets address for the pool (address(0) for ETH)
      * @return Pool address
      */
-    function createPool(address collection_, uint256 ltv_) external returns (address) {
+    function createPool(
+        address collection_,
+        uint256 ltv_,
+        address assets_
+    ) external payable returns (address) {
         address collateralFactoryAddress = collateralFactory;
         /* Check that collateral factory is set */
         require(collateralFactoryAddress != address(0), "PoolFactory: Collateral factory not set");
