@@ -8,14 +8,24 @@ import {ICollateralWrapper} from "./interfaces/ICollateralWrapper.sol";
 import {ICollateralLiquidator} from "./interfaces/ICollateralLiquidator.sol";
 
 // libraries
-import {ERC4626, ERC20, Math, SafeERC20} from "./libs/ModifiedERC4626.sol";
+import {
+    ERC4626Upgradeable,
+    ERC20Upgradeable,
+    SafeERC20Upgradeable,
+    IERC20Upgradeable,
+    MathUpgradeable
+} from "./libs/ModifiedERC4626Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract Pool is ERC4626, ReentrancyGuard {
-    using Math for uint256;
+// todo: add fee collecting logic (see with team)
+contract Pool is ERC4626Upgradeable, ReentrancyGuard {
+    using MathUpgradeable for uint256;
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     /**************************************************************************/
@@ -39,11 +49,8 @@ contract Pool is ERC4626, ReentrancyGuard {
     }
 
     /**************************************************************************/
-    /* Constants */
+    /* State (not updatable after initialization) */
     /**************************************************************************/
-
-    /* The minimum loan to value ratio */
-    uint256 public immutable LTV;
 
     /* The minimum amount of time of a loan  */
     uint256 MIN_LOAN_DURATION = 1 days;
@@ -54,26 +61,32 @@ contract Pool is ERC4626, ReentrancyGuard {
     /* The maximum amount of time that can pass between loan payments */
     uint256 MAX_LOAN_REFUND_INTERVAL = 30 days;
 
-    uint256 BASIS_POINTS = 10_000;
+    uint256 public constant BASIS_POINTS = 10_000;
 
     // todo: make it updateable by admin
     uint256 public constant MAX_INTEREST_RATE = 100; // 1% per day
 
+    /* The minimum loan to value ratio */
+    uint256 public ltvInBPS;
+
+    /* The NFT collection address that this pool lends for */
+    address public nftCollection;
+
     /** @dev The address of the contract in charge of liquidating NFT with unpaid loans.
      */
-    address public immutable liquidator;
-
-    /** @dev The address of the contract in charge of wrapping NFTs.
-     */
-    address public immutable wrappedNFT;
+    address public liquidator;
 
     /** @dev The address of the contract in charge of verifying the validity of the loan request.
      */
-    address public immutable NFTFilter;
+    address public NFTFilter;
 
     /** @dev The address of the admin in charge of collecting fees.
      */
-    address public immutable protocolAdmin;
+    address public protocolFeeCollector;
+
+    /** @dev The address of the contract in charge of wrapping NFTs.
+     */
+    address public wrappedNFT;
 
     /**************************************************************************/
     /* State */
@@ -104,26 +117,46 @@ contract Pool is ERC4626, ReentrancyGuard {
     /* Constructor */
     /**************************************************************************/
     // TODO: add name/symbol logic to factory
-    constructor(
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**************************************************************************/
+    /* Initializer */
+    /**************************************************************************/
+
+    function initialize(
+        address nftCollection_,
         address asset_,
         uint256 loanToValueinBPS_,
         uint256 initialDailyInterestRateinBPS_,
-        string memory name_,
-        string memory symbol_,
         address wrappedNFT_,
         address liquidator_,
         address NFTFilter_,
         address protocolFeeCollector_
-    ) ERC4626(IERC20(asset_)) ERC20(name_, symbol_) {
+    ) external initializer {
+        require(nftCollection_ != address(0), "Pool: nftCollection is zero address");
         require(liquidator_ != address(0), "Pool: liquidator is zero address");
         require(NFTFilter_ != address(0), "Pool: NFTFilter is zero address");
         require(protocolFeeCollector_ != address(0), "Pool: protocolFeeCollector is zero address");
-        LTV = loanToValueinBPS_;
+        require(ltvInBPS < BASIS_POINTS, "Pool: LTV too high");
+        nftCollection = nftCollection_;
+        ltvInBPS = loanToValueinBPS_;
         dailyInterestRate = initialDailyInterestRateinBPS_;
         wrappedNFT = wrappedNFT_;
         liquidator = liquidator_;
         NFTFilter = NFTFilter_;
-        protocolAdmin = protocolFeeCollector_;
+        protocolFeeCollector = protocolFeeCollector_;
+
+        // todo: check the naming with team
+        string memory collectionName = string.concat(
+            Strings.toHexString(nftCollection),
+            "-",
+            Strings.toHexString(loanToValueinBPS_)
+        );
+
+        __ERC4626_init(IERC20Upgradeable(asset_));
+        __ERC20_init(collectionName, "NFTL");
     }
 
     /**************************************************************************/
@@ -153,7 +186,7 @@ contract Pool is ERC4626, ReentrancyGuard {
 
         /* check if LTV is respected wit msg.value*/
         uint256 loanDepositLTV = (msg.value * BASIS_POINTS) / price_;
-        require(loanDepositLTV >= LTV, "Pool: LTV not respected");
+        require(loanDepositLTV >= ltvInBPS, "Pool: LTV not respected");
 
         uint256 remainingLoanAmount = price_ - msg.value;
 
@@ -165,8 +198,6 @@ contract Pool is ERC4626, ReentrancyGuard {
 
         /* check if the loan duration is not too long */
         require(loanDuration_ <= MAX_LOAN_DURATION, "Pool: loan duration too long");
-
-        //todo: create internal that will split paiements in n parts depending on the loan duration
 
         /* check if the NFT is valid and the price is correct (NFTFilter) */
         require(
@@ -272,8 +303,13 @@ contract Pool is ERC4626, ReentrancyGuard {
         /* close the loan */
         loan.isInLiquidation = true;
 
-        /* remove the loan from the ongoing loans todo: think if we do it from refund or here*/
+        /* remove the loan from the ongoing loans */
         _ongoingLoans.remove(keccak256(abi.encodePacked(collectionAddress_, tokenId_, borrower_)));
+
+        /* add the loan to the ongoing liquidations */
+        _ongoingLiquidations.add(
+            keccak256(abi.encodePacked(collectionAddress_, tokenId_, borrower_))
+        );
 
         /* burn wrapped NFT */
         ICollateralWrapper(wrappedNFT).burn(tokenId_);
@@ -281,7 +317,7 @@ contract Pool is ERC4626, ReentrancyGuard {
         /* transfer NFT to liquidator */
         IERC721(collectionAddress_).safeTransferFrom(address(this), liquidator, tokenId_);
 
-        /* call liquidator todo: check what price we use as starting liquidation price */
+        /* call liquidator todo: check with team what price we use as starting liquidation price */
         ICollateralLiquidator(liquidator).liquidate(
             collectionAddress_,
             tokenId_,
@@ -401,42 +437,41 @@ contract Pool is ERC4626, ReentrancyGuard {
 
     /** @dev Was created in order to deposit native token into the pool when the asset address is address(0).
      */
-    function depositNativeToken(uint256 dailyInterestRate_) external payable returns (uint256) {
+    function depositNativeTokens(
+        address receiver,
+        uint256 dailyInterestRate_
+    ) external payable returns (uint256) {
         require(address(_asset) == address(0), "Pool: asset is not ETH");
+        require(msg.value > 0, "Pool: msg.value is 0");
+        /* check that max daily interest is respected */
+        require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
 
+        require(msg.value <= maxDeposit(receiver), "ERC4626: deposit more than max");
+
+        uint256 shares = previewDeposit(msg.value);
+
+        /* update the daily interest rate with current one */
+        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
+
+        _deposit(_msgSender(), receiver, msg.value, shares);
+
+        return shares;
+    }
+
+    function depositERC20(
+        uint256 assets,
+        uint256 dailyInterestRate_
+    ) external payable returns (uint256) {
         /* check that max daily interest is respected */
         require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
 
         _updateVestingTime(dailyInterestRate_);
 
         /* return the shares minted */
-        uint256 shares = deposit(msg.value, msg.sender);
+        uint256 shares = deposit(assets, msg.sender);
 
         /* update the daily interest rate */
         _updateDailyInterestRateOnDeposit(dailyInterestRate_, shares);
-
-        return shares;
-    }
-
-    /** @dev See {IERC4626-withdraw}. */
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) public override returns (uint256) {
-        /* check that vesting time is respected */
-        require(
-            block.timestamp >= vestingTimePerBorrower[owner],
-            "Pool: vesting time not respected"
-        );
-
-        require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
-
-        uint256 shares = previewWithdraw(assets);
-
-        _updateDailyInterestRateOnWithdrawal(balanceOf(owner));
-
-        _withdraw(_msgSender(), receiver, owner, assets, shares);
 
         return shares;
     }
@@ -458,7 +493,7 @@ contract Pool is ERC4626, ReentrancyGuard {
         uint256 dailyInterestRate_,
         uint256 newShares_
     ) internal {
-        uint256 previousNumberOfShares = totalSupply() - newShares_;
+        uint256 previousNumberOfShares = totalSupply();
         uint256 currentDailyInterestRate = dailyInterestRate;
 
         // todo: check calculation
@@ -492,11 +527,74 @@ contract Pool is ERC4626, ReentrancyGuard {
     /* Overridden Vault API */
     /**************************************************************************/
 
+    /** @dev See {IERC4626-deposit}.
+     * This function is still open to non-ETH deposits and users that dont want vote for the daily interest rate.
+     */
+    function deposit(uint256 assets, address receiver) public override returns (uint256) {
+        /* check that asset is not ETH or else use the the depositNativeTokens function */
+        require(address(_asset) != address(0), "Pool: asset is ETH");
+
+        require(assets <= maxDeposit(receiver), "ERC4626: deposit more than max");
+
+        uint256 shares = previewDeposit(assets);
+
+        /* update the daily interest rate with current one */
+        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
+
+        _deposit(_msgSender(), receiver, assets, shares);
+
+        return shares;
+    }
+
+    /** @dev See {IERC4626-redeem}.
+     * Was modified to include the vesting logic.
+     */
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) public virtual override returns (uint256) {
+        require(
+            block.timestamp >= vestingTimePerBorrower[owner],
+            "Pool: vesting time not respected"
+        );
+
+        require(shares <= maxRedeem(owner), "ERC4626: redeem more than max");
+
+        uint256 assets = previewRedeem(shares);
+        _withdraw(_msgSender(), receiver, owner, assets, shares);
+
+        return assets;
+    }
+
+    /** @dev See {IERC4626-withdraw}.
+     * Was modified to include the vesting logic.
+     */
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public override returns (uint256) {
+        /* check that vesting time is respected */
+        require(
+            block.timestamp >= vestingTimePerBorrower[owner],
+            "Pool: vesting time not respected"
+        );
+
+        require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
+
+        uint256 shares = previewWithdraw(assets);
+
+        _withdraw(_msgSender(), receiver, owner, assets, shares);
+
+        return shares;
+    }
+
     /** @dev See {IERC4626-maxWithdraw}.
      * Was modified to return the was is widrawable depending on the balance held by the pool.
      */
     function maxWithdraw(address owner) public view override returns (uint256) {
-        uint256 expectedBalance = _convertToAssets(balanceOf(owner), Math.Rounding.Down);
+        uint256 expectedBalance = _convertToAssets(balanceOf(owner), MathUpgradeable.Rounding.Down);
         if (expectedBalance >= totalAssets()) {
             return totalAssets();
         } else {
@@ -531,7 +629,7 @@ contract Pool is ERC4626, ReentrancyGuard {
             // Conclusion: we need to do the transfer before we mint so that any reentrancy would happen before the
             // assets are transferred and before the shares are minted, which is a valid state.
             // slither-disable-next-line reentrancy-no-eth
-            SafeERC20.safeTransferFrom(_asset, caller, address(this), assets);
+            SafeERC20Upgradeable.safeTransferFrom(_asset, caller, address(this), assets);
         }
 
         _mint(receiver, shares);
@@ -546,6 +644,7 @@ contract Pool is ERC4626, ReentrancyGuard {
         uint256 assets,
         uint256 shares
     ) internal override {
+        _updateDailyInterestRateOnWithdrawal(balanceOf(owner));
         // If _asset is ERC777, `transfer` can trigger a reentrancy AFTER the transfer happens through the
         // `tokensReceived` hook. On the other hand, the `tokensToSend` hook, that is triggered before the transfer,
         // calls the vault, which is assumed not malicious.
@@ -562,7 +661,7 @@ contract Pool is ERC4626, ReentrancyGuard {
                 _spendAllowance(owner, caller, shares);
             }
             // slither-disable-next-line reentrancy-no-eth
-            SafeERC20.safeTransfer(_asset, receiver, assets);
+            SafeERC20Upgradeable.safeTransfer(_asset, receiver, assets);
         }
         emit Withdraw(caller, receiver, owner, assets, shares);
     }
@@ -573,8 +672,8 @@ contract Pool is ERC4626, ReentrancyGuard {
 
     function updateVestingTimePerPerCentInterest(uint256 vestingTimePerPerCentInterest_) external {
         require(
-            msg.sender == protocolAdmin,
-            "Pool: Only protocol admin can update vestingTimePerPerCentInterest"
+            msg.sender == protocolFeeCollector,
+            "Pool: Only protocol fee collector can update vestingTimePerPerCentInterest"
         );
         vestingTimePerPerCentInterest = vestingTimePerPerCentInterest_;
     }

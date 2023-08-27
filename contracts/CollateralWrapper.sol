@@ -57,7 +57,7 @@ contract CollateralWrapper is ERC721, ReentrancyGuard, Initializable {
     /* Initializer */
     /**************************************************************************/
 
-    function initialize(address collection_, address poolFactory_) external onlyInitializing {
+    function initialize(address collection_, address poolFactory_) external initializer {
         collection = collection_;
         poolFactory = poolFactory_;
     }

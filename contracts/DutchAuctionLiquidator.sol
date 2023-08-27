@@ -109,7 +109,7 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
      * @notice Initializer
      * @dev Fee-on-transfer currency tokens are not supported
      */
-    function initialize(uint64 liquidationDuration_) external onlyInitializing {
+    function initialize(uint64 liquidationDuration_) external initializer {
         require(
             liquidationDuration_ > 0,
             "DutchAuctionCollateralLiquidator: Invalid liquidation duration"
