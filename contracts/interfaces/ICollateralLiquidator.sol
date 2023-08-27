@@ -3,8 +3,8 @@ pragma solidity 0.8.19;
 
 interface ICollateralLiquidator {
     function liquidate(
-        address collateralToken_,
-        uint256 collateralTokenId_,
-        uint256 startingPrice_
+        address collateralToken,
+        uint256 collateralTokenId,
+        uint256 startingPrice
     ) external;
 }
