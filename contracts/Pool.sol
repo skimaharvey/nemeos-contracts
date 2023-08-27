@@ -23,7 +23,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-// todo: make this contract a non upgradable proxy
+// todo: add fee collecting logic (see with team)
 contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     using MathUpgradeable for uint256;
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -82,7 +82,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
     /** @dev The address of the admin in charge of collecting fees.
      */
-    address public protocolAdmin;
+    address public protocolFeeCollector;
 
     /** @dev The address of the contract in charge of wrapping NFTs.
      */
@@ -146,7 +146,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         wrappedNFT = wrappedNFT_;
         liquidator = liquidator_;
         NFTFilter = NFTFilter_;
-        protocolAdmin = protocolFeeCollector_;
+        protocolFeeCollector = protocolFeeCollector_;
 
         // todo: check the naming with team
         string memory collectionName = string.concat(
@@ -198,8 +198,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         /* check if the loan duration is not too long */
         require(loanDuration_ <= MAX_LOAN_DURATION, "Pool: loan duration too long");
-
-        //todo: create internal that will split paiements in n parts depending on the loan duration
 
         /* check if the NFT is valid and the price is correct (NFTFilter) */
         require(
@@ -305,8 +303,13 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* close the loan */
         loan.isInLiquidation = true;
 
-        /* remove the loan from the ongoing loans todo: think if we do it from refund or here*/
+        /* remove the loan from the ongoing loans */
         _ongoingLoans.remove(keccak256(abi.encodePacked(collectionAddress_, tokenId_, borrower_)));
+
+        /* add the loan to the ongoing liquidations */
+        _ongoingLiquidations.add(
+            keccak256(abi.encodePacked(collectionAddress_, tokenId_, borrower_))
+        );
 
         /* burn wrapped NFT */
         ICollateralWrapper(wrappedNFT).burn(tokenId_);
@@ -314,7 +317,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* transfer NFT to liquidator */
         IERC721(collectionAddress_).safeTransferFrom(address(this), liquidator, tokenId_);
 
-        /* call liquidator todo: check what price we use as starting liquidation price */
+        /* call liquidator todo: check with team what price we use as starting liquidation price */
         ICollateralLiquidator(liquidator).liquidate(
             collectionAddress_,
             tokenId_,
@@ -451,27 +454,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         return shares;
     }
 
-    /** @dev See {IERC4626-withdraw}. */
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) public override returns (uint256) {
-        /* check that vesting time is respected */
-        require(
-            block.timestamp >= vestingTimePerBorrower[owner],
-            "Pool: vesting time not respected"
-        );
-
-        require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
-
-        uint256 shares = previewWithdraw(assets);
-
-        _withdraw(_msgSender(), receiver, owner, assets, shares);
-
-        return shares;
-    }
-
     /**************************************************************************/
     /* Lender Internals API */
     /**************************************************************************/
@@ -538,6 +520,50 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
 
         _deposit(_msgSender(), receiver, assets, shares);
+
+        return shares;
+    }
+
+    /** @dev See {IERC4626-redeem}.
+     * Was modified to include the vesting logic.
+     */
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) public virtual override returns (uint256) {
+        require(
+            block.timestamp >= vestingTimePerBorrower[owner],
+            "Pool: vesting time not respected"
+        );
+
+        require(shares <= maxRedeem(owner), "ERC4626: redeem more than max");
+
+        uint256 assets = previewRedeem(shares);
+        _withdraw(_msgSender(), receiver, owner, assets, shares);
+
+        return assets;
+    }
+
+    /** @dev See {IERC4626-withdraw}.
+     * Was modified to include the vesting logic.
+     */
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public override returns (uint256) {
+        /* check that vesting time is respected */
+        require(
+            block.timestamp >= vestingTimePerBorrower[owner],
+            "Pool: vesting time not respected"
+        );
+
+        require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
+
+        uint256 shares = previewWithdraw(assets);
+
+        _withdraw(_msgSender(), receiver, owner, assets, shares);
 
         return shares;
     }
@@ -624,8 +650,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
     function updateVestingTimePerPerCentInterest(uint256 vestingTimePerPerCentInterest_) external {
         require(
-            msg.sender == protocolAdmin,
-            "Pool: Only protocol admin can update vestingTimePerPerCentInterest"
+            msg.sender == protocolFeeCollector,
+            "Pool: Only protocol fee collector can update vestingTimePerPerCentInterest"
         );
         vestingTimePerPerCentInterest = vestingTimePerPerCentInterest_;
     }
