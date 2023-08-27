@@ -107,7 +107,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**
      * @notice PoolFactory initializator
      */
-    function initialize(address factoryOwner_) external onlyInitializing {
+    function initialize(address factoryOwner_) external initializer {
         _transferOwnership(factoryOwner_);
     }
 
@@ -153,6 +153,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
 
         /* Initialize pool */
         IPool(poolInstance).initialize(collection_, ltv_, collectionWrapper, liquidator);
+
+        /* should deposit in the Pool in order to avoid inflation attack */
 
         /* Add pool to registry */
         _pools.add(poolInstance);

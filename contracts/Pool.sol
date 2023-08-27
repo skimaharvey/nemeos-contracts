@@ -14,6 +14,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
+// todo: make this contract a non upgradable proxy
 contract Pool is ERC4626, ReentrancyGuard {
     using Math for uint256;
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -401,7 +402,7 @@ contract Pool is ERC4626, ReentrancyGuard {
 
     /** @dev Was created in order to deposit native token into the pool when the asset address is address(0).
      */
-    function depositNativeToken(uint256 dailyInterestRate_) external payable returns (uint256) {
+    function depositNativeTokens(uint256 dailyInterestRate_) external payable returns (uint256) {
         require(address(_asset) == address(0), "Pool: asset is not ETH");
 
         /* check that max daily interest is respected */
@@ -433,8 +434,6 @@ contract Pool is ERC4626, ReentrancyGuard {
         require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
 
         uint256 shares = previewWithdraw(assets);
-
-        _updateDailyInterestRateOnWithdrawal(balanceOf(owner));
 
         _withdraw(_msgSender(), receiver, owner, assets, shares);
 
@@ -492,6 +491,25 @@ contract Pool is ERC4626, ReentrancyGuard {
     /* Overridden Vault API */
     /**************************************************************************/
 
+    /** @dev See {IERC4626-deposit}.
+     * This function is still open to non-ETH deposits and users that dont want vote for the daily interest rate.
+     */
+    function deposit(uint256 assets, address receiver) public override returns (uint256) {
+        /* check that asset is not ETH or else use the the depositNativeTokens function */
+        require(address(_asset) != address(0), "Pool: asset is ETH");
+
+        require(assets <= maxDeposit(receiver), "ERC4626: deposit more than max");
+
+        uint256 shares = previewDeposit(assets);
+
+        /* update the daily interest rate with current one */
+        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
+
+        _deposit(_msgSender(), receiver, assets, shares);
+
+        return shares;
+    }
+
     /** @dev See {IERC4626-maxWithdraw}.
      * Was modified to return the was is widrawable depending on the balance held by the pool.
      */
@@ -546,6 +564,7 @@ contract Pool is ERC4626, ReentrancyGuard {
         uint256 assets,
         uint256 shares
     ) internal override {
+        _updateDailyInterestRateOnWithdrawal(balanceOf(owner));
         // If _asset is ERC777, `transfer` can trigger a reentrancy AFTER the transfer happens through the
         // `tokensReceived` hook. On the other hand, the `tokensToSend` hook, that is triggered before the transfer,
         // calls the vault, which is assumed not malicious.
