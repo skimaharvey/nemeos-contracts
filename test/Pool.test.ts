@@ -5,7 +5,7 @@ import '@openzeppelin/hardhat-upgrades';
 import OfferData from './fullfil-offer-data.json';
 import { mockSignLoan } from './helpers';
 
-describe.only('PoolFactory', async () => {
+describe('PoolFactory', async () => {
   const buildTestContext = async () => {
     const [poolFactoryOwner, protocolFeeCollector, proxyAdmin, oracleSigner, borrower] =
       await ethers.getSigners();

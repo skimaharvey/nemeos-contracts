@@ -119,22 +119,24 @@ contract NFTFilter {
         /* get customer nonce and increase it by one*/
         uint256 nonce = customerNonces[customerAddress_]++;
 
-        bytes memory encodedMessage = abi.encodePacked(
-            block.chainid,
-            collectionAddress_,
-            nftID_,
-            price_,
-            customerAddress_,
-            nonce,
-            loanTimestamp_,
-            orderExtraData_
+        bytes32 encodedMessageHash = ECDSA.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    block.chainid,
+                    collectionAddress_,
+                    nftID_,
+                    price_,
+                    customerAddress_,
+                    nonce,
+                    loanTimestamp_,
+                    orderExtraData_
+                )
+            )
         );
 
         // todo: check if we will use this address or the pool to verify the signature
         /* check that the signature is valid */
-        address signer = address(this).toDataWithIntendedValidatorHash(encodedMessage).recover(
-            signature
-        );
+        address signer = ECDSA.recover(encodedMessageHash, signature);
 
         /* check that the signer is the oracle */
         isValid = signer == oracle;
