@@ -18,6 +18,7 @@ import {
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -48,11 +49,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     }
 
     /**************************************************************************/
-    /* State (not updatable) */
+    /* State (not updatable after initialization) */
     /**************************************************************************/
-
-    /* The minimum loan to value ratio */
-    uint256 public LTV;
 
     /* The minimum amount of time of a loan  */
     uint256 MIN_LOAN_DURATION = 1 days;
@@ -63,18 +61,20 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* The maximum amount of time that can pass between loan payments */
     uint256 MAX_LOAN_REFUND_INTERVAL = 30 days;
 
-    uint256 BASIS_POINTS = 10_000;
+    uint256 public constant BASIS_POINTS = 10_000;
 
     // todo: make it updateable by admin
     uint256 public constant MAX_INTEREST_RATE = 100; // 1% per day
 
+    /* The minimum loan to value ratio */
+    uint256 public ltvInBPS;
+
+    /* The NFT collection address that this pool lends for */
+    address nftCollection;
+
     /** @dev The address of the contract in charge of liquidating NFT with unpaid loans.
      */
     address public liquidator;
-
-    /** @dev The address of the contract in charge of wrapping NFTs.
-     */
-    address public wrappedNFT;
 
     /** @dev The address of the contract in charge of verifying the validity of the loan request.
      */
@@ -83,6 +83,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /** @dev The address of the admin in charge of collecting fees.
      */
     address public protocolAdmin;
+
+    /** @dev The address of the contract in charge of wrapping NFTs.
+     */
+    address public wrappedNFT;
 
     /**************************************************************************/
     /* State */
@@ -122,28 +126,37 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     function initialize(
+        address nftCollection_,
         address asset_,
         uint256 loanToValueinBPS_,
         uint256 initialDailyInterestRateinBPS_,
         address wrappedNFT_,
         address liquidator_,
         address NFTFilter_,
-        address protocolFeeCollector_,
-        string memory name_,
-        string memory symbol_
+        address protocolFeeCollector_
     ) external initializer {
+        require(nftCollection_ != address(0), "Pool: nftCollection is zero address");
         require(liquidator_ != address(0), "Pool: liquidator is zero address");
         require(NFTFilter_ != address(0), "Pool: NFTFilter is zero address");
         require(protocolFeeCollector_ != address(0), "Pool: protocolFeeCollector is zero address");
-        LTV = loanToValueinBPS_;
+        require(ltvInBPS < BASIS_POINTS, "Pool: LTV too high");
+        nftCollection = nftCollection_;
+        ltvInBPS = loanToValueinBPS_;
         dailyInterestRate = initialDailyInterestRateinBPS_;
         wrappedNFT = wrappedNFT_;
         liquidator = liquidator_;
         NFTFilter = NFTFilter_;
         protocolAdmin = protocolFeeCollector_;
 
+        // todo: check the naming with team
+        string memory collectionName = string.concat(
+            Strings.toHexString(nftCollection),
+            "-",
+            Strings.toHexString(loanToValueinBPS_)
+        );
+
         __ERC4626_init(IERC20Upgradeable(asset_));
-        __ERC20_init(name_, symbol_);
+        __ERC20_init(collectionName, "NFTL");
     }
 
     /**************************************************************************/
@@ -173,7 +186,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         /* check if LTV is respected wit msg.value*/
         uint256 loanDepositLTV = (msg.value * BASIS_POINTS) / price_;
-        require(loanDepositLTV >= LTV, "Pool: LTV not respected");
+        require(loanDepositLTV >= ltvInBPS, "Pool: LTV not respected");
 
         uint256 remainingLoanAmount = price_ - msg.value;
 
