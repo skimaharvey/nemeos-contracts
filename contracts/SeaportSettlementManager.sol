@@ -24,6 +24,7 @@ contract SeaportSettlementManager {
     struct PartialBasicOrderParameters {
         address considerationToken;
         uint256 considerationIdentifier;
+        uint256 considerationAmount;
         address payable offerer;
         address zone;
         uint256 offerAmount;
@@ -64,11 +65,11 @@ contract SeaportSettlementManager {
         bytes calldata orderExtraData_
     ) external payable {
         /**  orderExtraData_ is the encoded BasicOrderParameters struct minus the collectionAddress_ & tokenId_ :
-         * address considerationToken,
-         * uint256 considerationIdentifier,
+         * address considerationToken
+         * uint256 considerationIdentifier
+         * uint256 considerationAmount
          * address offerer
          * address zone
-         * address offerToken
          * uint256 offerAmount
          * uint256 offerIdentifier
          * BasicOrderType basicOrderType
@@ -87,26 +88,27 @@ contract SeaportSettlementManager {
             (PartialBasicOrderParameters)
         );
 
-        BasicOrderParameters memory buyParams = BasicOrderParameters(
-            partialBasicOrderParameters.considerationToken,
-            partialBasicOrderParameters.considerationIdentifier,
-            msg.value,
-            partialBasicOrderParameters.offerer,
-            partialBasicOrderParameters.zone,
-            collectionAddress_,
-            partialBasicOrderParameters.offerAmount,
-            tokenId_,
-            partialBasicOrderParameters.basicOrderType,
-            partialBasicOrderParameters.startTime,
-            partialBasicOrderParameters.endTime,
-            partialBasicOrderParameters.zoneHash,
-            partialBasicOrderParameters.salt,
-            partialBasicOrderParameters.offererConduitKey,
-            partialBasicOrderParameters.fulfillerConduitKey,
-            partialBasicOrderParameters.totalOriginalAdditionalRecipients,
-            partialBasicOrderParameters.additionalRecipients,
-            partialBasicOrderParameters.signature
-        );
+        BasicOrderParameters memory buyParams = BasicOrderParameters({
+            considerationToken: partialBasicOrderParameters.considerationToken,
+            considerationIdentifier: partialBasicOrderParameters.considerationIdentifier,
+            considerationAmount: partialBasicOrderParameters.considerationAmount,
+            offerer: partialBasicOrderParameters.offerer,
+            zone: partialBasicOrderParameters.zone,
+            offerToken: collectionAddress_,
+            offerIdentifier: tokenId_,
+            offerAmount: partialBasicOrderParameters.offerAmount,
+            basicOrderType: partialBasicOrderParameters.basicOrderType,
+            startTime: partialBasicOrderParameters.startTime,
+            endTime: partialBasicOrderParameters.endTime,
+            zoneHash: partialBasicOrderParameters.zoneHash,
+            salt: partialBasicOrderParameters.salt,
+            offererConduitKey: partialBasicOrderParameters.offererConduitKey,
+            fulfillerConduitKey: partialBasicOrderParameters.fulfillerConduitKey,
+            totalOriginalAdditionalRecipients: partialBasicOrderParameters
+                .totalOriginalAdditionalRecipients,
+            additionalRecipients: partialBasicOrderParameters.additionalRecipients,
+            signature: partialBasicOrderParameters.signature
+        });
 
         // // TODO: investigate Seaport execution as this might be wrong. params receiver should be the pool address
         // // need to check what happens when sending too much value and possibly refund the pool
