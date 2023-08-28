@@ -6,6 +6,7 @@ import {CollateralFactory} from "./CollateralFactory.sol";
 
 // interfaces
 import {IPool} from "./interfaces/IPool.sol";
+import {ICollateralWrapper} from "./interfaces/ICollateralWrapper.sol";
 
 // libraries
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -181,6 +182,9 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
 
         /* Create pool instance */
         address poolInstance = Clones.clone(poolImplementation);
+
+        /* Add pool to collateral wrapper*/
+        ICollateralWrapper(collectionWrapper).addPool(poolInstance);
 
         /* Initialize pool */
         IPool(poolInstance).initialize(

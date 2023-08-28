@@ -18,6 +18,16 @@ import {
  */
 contract SeaportSettlementManager {
     /**************************************************************************/
+    /* Events */
+    /**************************************************************************/
+    event BuyExecuted(
+        address indexed collectionAddress,
+        uint256 indexed tokenId,
+        address indexed pool,
+        uint256 amount
+    );
+
+    /**************************************************************************/
     /* Structs */
     /**************************************************************************/
 
@@ -114,7 +124,10 @@ contract SeaportSettlementManager {
         // // need to check what happens when sending too much value and possibly refund the pool
         SEAPORT.fulfillBasicOrder{value: msg.value}(buyParams);
 
-        /* transfer NFT to pool */
-        IERC721(collectionAddress_).safeTransferFrom(address(this), msg.sender, tokenId_);
+        /* emit BuyExecuted event */
+        emit BuyExecuted(collectionAddress_, tokenId_, msg.sender, msg.value);
+
+        /* transfer NFT to pool todo: use safeTransferFrom with recipient hook*/
+        IERC721(collectionAddress_).transferFrom(address(this), msg.sender, tokenId_);
     }
 }
