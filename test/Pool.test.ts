@@ -64,6 +64,8 @@ describe('PoolFactory', async () => {
     await nftFilter.deployed();
     const nftFilterAddress = nftFilter.address;
 
+    // add pool to Collateral wrapper
+
     // update collateral factory to poolFactory
     await poolFactoryProxy.updateCollateralFactory(collateralFactory.address);
 
@@ -182,7 +184,7 @@ describe('PoolFactory', async () => {
 
     const additionalRecipientsArray =
       OfferData.fulfillment_data.transaction.input_data.parameters.additionalRecipients.map(
-        ({ amount, recipient }) => [recipient, amount],
+        ({ amount, recipient }) => [amount, recipient],
       );
 
     const orderExtraDataTypes = [
@@ -200,7 +202,7 @@ describe('PoolFactory', async () => {
       'bytes32', // offererConduitKey
       'bytes32', // fulfillerConduitKey
       'uint256', // totalOriginalAdditionalRecipients
-      'tuple(address,uint256)[]', // additionalRecipients
+      'tuple(uint256,address)[]', // additionalRecipients
       'bytes', // signature
     ];
 
@@ -246,8 +248,8 @@ describe('PoolFactory', async () => {
         value: deposit,
       });
 
-    // todo: fix tests
-    await poolProxy
+    // buy NFT
+    const tx = await poolProxy
       .connect(borrower)
       .buyNFT(
         collecttionAddress,
@@ -261,5 +263,7 @@ describe('PoolFactory', async () => {
         oracleSignature,
         { value: BigNumber.from(ltvValue.toString()) },
       );
+
+    await expect(tx).to.emit(seaportSettlementManager, 'BuyExecuted');
   });
 });

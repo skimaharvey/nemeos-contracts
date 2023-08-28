@@ -24,6 +24,7 @@ const config: HardhatUserConfig = {
         url: `https://mainnet.infura.io/v3/${INFURA_KEY}`,
         blockNumber: 18002230,
       },
+      chainId: 1,
     },
   },
 };
