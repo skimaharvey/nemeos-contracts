@@ -288,11 +288,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         loans[loanHash] = loan;
     }
 
-    function liquidateLoan(
-        address collectionAddress_,
-        uint256 tokenId_,
-        address borrower_
-    ) external nonReentrant {
+    function liquidateLoan(uint256 tokenId_, address borrower_) external nonReentrant {
         Loan memory loan = retrieveLoan(tokenId_, borrower_);
 
         /* check if loan exists */
@@ -313,23 +309,25 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* put the loan in liquidation */
         loan.isInLiquidation = true;
 
+        bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
+
         /* remove the loan from the ongoing loans */
-        _ongoingLoans.remove(keccak256(abi.encodePacked(collectionAddress_, tokenId_, borrower_)));
+        _ongoingLoans.remove(loanHash);
 
         /* add the loan to the ongoing liquidations */
-        _ongoingLiquidations.add(
-            keccak256(abi.encodePacked(collectionAddress_, tokenId_, borrower_))
-        );
+        _ongoingLiquidations.add(loanHash);
 
         /* burn wrapped NFT */
         ICollateralWrapper(wrappedNFT).burn(tokenId_);
 
+        address collectionAddress = nftCollection;
+
         /* transfer NFT to liquidator */
-        IERC721(collectionAddress_).safeTransferFrom(address(this), liquidator, tokenId_);
+        IERC721(collectionAddress).safeTransferFrom(address(this), liquidator, tokenId_);
 
         /* call liquidator todo: check with team what price we use as starting liquidation price */
         ICollateralLiquidator(liquidator).liquidate(
-            collectionAddress_,
+            collectionAddress,
             tokenId_,
             loan.amountAtStart
         );
