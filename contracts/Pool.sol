@@ -297,13 +297,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* check if loan is not paid back */
         require(loan.amountOwed > 0, "Pool: loan already paid back");
 
-        /* check if loan is not in liquidation */
-        require(!loan.isInLiquidation, "Pool: loan already in liquidation");
-
-        /* put the loan in liquidation */
-        loan.isInLiquidation = true;
-
         bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
+
+        /* update the loan to 'in liquidation' */
+        loans[loanHash].isInLiquidation = true;
 
         /* remove the loan from the ongoing loans */
         _ongoingLoans.remove(loanHash);
