@@ -97,31 +97,19 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
     /**
      * @notice DutchAuctionCollateralLiquidator constructor
      */
-    constructor() {
-        _disableInitializers();
-    }
-
-    /**************************************************************************/
-    /* Initializer */
-    /**************************************************************************/
-
-    /**
-     * @notice Initializer
-     * @dev Fee-on-transfer currency tokens are not supported
-     */
-    function initialize(uint64 liquidationDuration_) external initializer {
+    constructor(address poolsFactory_, uint64 liquidationDurationInDays_) {
         require(
-            liquidationDuration_ > 0,
+            liquidationDurationInDays_ > 0,
             "DutchAuctionCollateralLiquidator: Invalid liquidation duration"
         );
-        _liquidationDuration = liquidationDuration_;
+        _liquidationDuration = liquidationDurationInDays_ * 1 days;
+        poolsFactory = poolsFactory_;
     }
 
     /**************************************************************************/
     /* Implementation */
     /**************************************************************************/
 
-    /* TODO: from pool transfer NFT to this contract*/
     /**
      * @notice Start a liquidation
      *
@@ -138,6 +126,12 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
     ) external nonReentrant {
         /* Check if caller is a pool */
         require(IPoolFactory(poolsFactory).isPool(msg.sender), "Liquidator: Caller is not a pool");
+
+        /* Check if liquidator owns the tokenId */
+        require(
+            IERC721(collateralToken_).ownerOf(collateralTokenId_) == address(this),
+            "Liquidator: Liquidator does not own the token"
+        );
 
         /* Create liquidation */
         _liquidations[collateralToken_][collateralTokenId_] = Liquidation({
