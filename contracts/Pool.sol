@@ -404,6 +404,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             loanDurationInDays
         );
 
+        /* check if the amount to be paid back is not too high */
+        require(
+            totalAmountOwed + msg.value <= priceIncludingFees_,
+            "Pool: amount to be paid back too high"
+        );
+
         /* calculate end time */
         uint256 endTime = block.timestamp + loanDuration_;
 
@@ -440,12 +446,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         /* store the loan */
         loans[loanHash] = loan;
-
-        /* check if the amount to be paid back is not too high */
-        require(
-            totalAmountOwed + msg.value <= priceIncludingFees_,
-            "Pool: amount to be paid back too high"
-        );
 
         return totalAmountOwed;
     }
