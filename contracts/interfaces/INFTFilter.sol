@@ -6,6 +6,7 @@ interface INFTFilter {
         address collectionAddress,
         uint256 nftID,
         uint256 price,
+        uint256 priceIncludingFees_,
         address customerAddress,
         address marketplaceAddress,
         uint256 loanTimestamp,
