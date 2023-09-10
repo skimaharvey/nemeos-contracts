@@ -178,11 +178,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     function buyNFT(
         address collectionAddress_,
         uint256 tokenId_,
-        uint256 price_,
+        uint256 priceOfNFT_,
+        uint256 priceIncludingFees_,
         address settlementManager_,
         uint256 loanTimestamp_,
         uint256 loanDuration_,
-        uint256 maxAmountToBePaidBack_,
         bytes calldata orderExtraData_,
         bytes calldata oracleSignature_
     ) external payable nonReentrant {
@@ -196,26 +196,20 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         require(loanDuration_ >= MIN_LOAN_DURATION, "Pool: loan duration too short");
 
         /* check if LTV is respected wit msg.value*/
-        uint256 loanDepositLTV = (msg.value * BASIS_POINTS) / price_;
+        uint256 loanDepositLTV = (msg.value * BASIS_POINTS) / priceOfNFT_;
         require(loanDepositLTV >= ltvInBPS, "Pool: LTV not respected");
 
-        uint256 remainingLoanAmount = price_ - msg.value;
+        uint256 remainingLoanAmount = priceOfNFT_ - msg.value;
 
-        /* check if the amount to be paid back is not too high */
-        require(
-            _createLoan(remainingLoanAmount, loanDuration_) <= maxAmountToBePaidBack_,
-            "Pool: amount to be paid back too high"
-        );
-
-        /* check if the loan duration is not too long */
-        require(loanDuration_ <= MAX_LOAN_DURATION, "Pool: loan duration too long");
+        _createLoan(remainingLoanAmount, loanDuration_, priceIncludingFees_, tokenId_);
 
         /* check if the NFT is valid and the price is correct (NFTFilter) */
         require(
             INFTFilter(NFTFilter).verifyLoanValidity(
                 collectionAddress_,
                 tokenId_,
-                price_,
+                priceOfNFT_,
+                priceIncludingFees_,
                 msg.sender,
                 settlementManager_,
                 loanTimestamp_,
@@ -226,7 +220,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         );
 
         /* buy the NFT */
-        ISettlementManager(settlementManager_).executeBuy{value: price_}(
+        ISettlementManager(settlementManager_).executeBuy{value: priceOfNFT_}(
             collectionAddress_,
             tokenId_,
             orderExtraData_
@@ -323,7 +317,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         address collectionAddress = nftCollection;
 
         /* transfer NFT to liquidator */
-        IERC721(collectionAddress).safeTransferFrom(address(this), liquidator, tokenId_);
+        IERC721(collectionAddress).transferFrom(address(this), liquidator, tokenId_);
 
         /* call liquidator todo: check with team what price we use as starting liquidation price */
         ICollateralLiquidator(liquidator).liquidate(
@@ -356,6 +350,18 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         loans[loanHash] = loan;
     }
 
+    /** @dev Allows to retrieve the ongoing loans.
+     *  @return onGoingLoansArray The array of ongoing loans.
+     */
+    function onGoingLoans() external view returns (bytes32[] memory) {
+        uint256 length = _ongoingLoans.length();
+        bytes32[] memory onGoingLoansArray = new bytes32[](length);
+        for (uint256 i = 0; i < length; i++) {
+            onGoingLoansArray[i] = _ongoingLoans.at(i);
+        }
+        return onGoingLoansArray;
+    }
+
     /** @dev Allows to retrieve the loan of a borrower.
      * @param tokenId_ The ID of the NFT.
      * @param borrower The address of the borrower.
@@ -368,26 +374,38 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         return loans[keccak256(abi.encodePacked(tokenId_, borrower))];
     }
 
+    function calculateLoanPrice(
+        uint256 remainingLoanAmount_,
+        uint256 loanDurationInDays_
+    ) public view returns (uint256, uint256) {
+        /* check if pool has enough */
+        require(remainingLoanAmount_ <= totalAssets(), "Pool: not enough assets");
+
+        /* calculate the interests where interest amount is equal number of days * daily interest */
+        uint256 interestAmount = (remainingLoanAmount_ * dailyInterestRate * loanDurationInDays_) /
+            BASIS_POINTS;
+
+        /* calculate the amount to be paid back */
+        return (remainingLoanAmount_ + interestAmount, interestAmount);
+    }
+
     /**************************************************************************/
     /* Borrower API Internals */
     /**************************************************************************/
 
     function _createLoan(
-        uint256 remainingLoanAmount,
-        uint256 loanDuration_
-    ) internal returns (uint256 totalAmountOwed) {
+        uint256 remainingLoanAmount_,
+        uint256 loanDuration_,
+        uint256 priceIncludingFees_,
+        uint256 tokenId_
+    ) internal returns (uint256) {
         /* calculate the number of days of the loan */
         uint256 loanDurationInDays = loanDuration_ / 1 days;
 
-        /* calculate the interests where interest amount is equal number of days * daily interest */
-        uint256 interestAmount = (remainingLoanAmount * dailyInterestRate * loanDurationInDays) /
-            BASIS_POINTS;
-
-        /* calculate the amount to be paid back */
-        totalAmountOwed = remainingLoanAmount + interestAmount;
-
-        /* check if pool has enough */
-        require(totalAmountOwed <= totalAssets(), "Pool: not enough assets");
+        (uint256 totalAmountOwed, uint256 interestAmount) = calculateLoanPrice(
+            remainingLoanAmount_,
+            loanDurationInDays
+        );
 
         /* calculate end time */
         uint256 endTime = block.timestamp + loanDuration_;
@@ -406,7 +424,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             : (totalAmountOwed / numberOfInstallments) + 1;
 
         Loan memory loan = Loan({
-            amountAtStart: remainingLoanAmount + msg.value,
+            amountAtStart: remainingLoanAmount_ + msg.value,
             amountOwed: totalAmountOwed,
             nextPaiementAmount: nextPaiementAmount,
             loanDuration: loanDuration_,
@@ -418,13 +436,21 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             isInLiquidation: false
         });
 
-        bytes32 loanHash = keccak256(abi.encodePacked(msg.sender, wrappedNFT, remainingLoanAmount));
+        bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, msg.sender));
 
         /* add the loan to the ongoing loans */
         _ongoingLoans.add(loanHash);
 
         /* store the loan */
         loans[loanHash] = loan;
+
+        /* check if the amount to be paid back is not too high */
+        require(
+            totalAmountOwed + msg.value <= priceIncludingFees_,
+            "Pool: amount to be paid back too high"
+        );
+
+        return totalAmountOwed;
     }
 
     function _unwrapNFT(uint256 tokenId_, address borrower_) internal {
