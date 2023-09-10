@@ -29,6 +29,16 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     /**************************************************************************/
+    /* Events */
+    /**************************************************************************/
+
+    event LiquidationRefund(
+        address indexed collateralToken,
+        uint256 indexed collateralTokenId,
+        uint256 amount
+    );
+
+    /**************************************************************************/
     /* Structs */
     /**************************************************************************/
 
@@ -116,7 +126,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
     /* Constructor */
     /**************************************************************************/
-    // TODO: add name/symbol logic to factory
+
     constructor() {
         _disableInitializers();
     }
@@ -164,7 +174,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     // todo: add the logic that verify user agrees with total amount to be paid back (may be with slippage)
-    // todo: add settlement manager logic (see with team)
+    // todo: add settlement manager logic (see with team if need as it is part of the signature and the verification?)
     function buyNFT(
         address collectionAddress_,
         uint256 tokenId_,
@@ -226,12 +236,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         ICollateralWrapper(wrappedNFT).mint(tokenId_, msg.sender);
     }
 
-    function refundLoan(
-        address collectionAddress_,
-        uint256 tokenId_,
-        address borrower_
-    ) external payable nonReentrant {
-        Loan memory loan = retrieveLoan(collectionAddress_, tokenId_, borrower_);
+    function refundLoan(uint256 tokenId_, address borrower_) external payable nonReentrant {
+        Loan memory loan = retrieveLoan(tokenId_, borrower_);
 
         /* check if loan exists */
         require(loan.amountAtStart != 0, "Pool: loan does not exist");
@@ -254,7 +260,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* update the loan */
         loan.amountOwed -= msg.value;
 
-        bytes32 loanHash = keccak256(abi.encodePacked(collectionAddress_, tokenId_, borrower_));
+        bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
 
         if (loan.amountOwed == 0) {
             /* next payment time is now */
@@ -270,7 +276,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             _ongoingLoans.remove(loanHash);
 
             /* unwrap NFT */
-            _unwrapNFT(collectionAddress_, tokenId_, borrower_);
+            _unwrapNFT(tokenId_, borrower_);
         } else {
             loan.nextPaymentTime += MAX_LOAN_REFUND_INTERVAL;
             loan.nextPaiementAmount = loan.amountOwed <= loan.nextPaiementAmount
@@ -282,12 +288,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         loans[loanHash] = loan;
     }
 
-    function liquidateLoan(
-        address collectionAddress_,
-        uint256 tokenId_,
-        address borrower_
-    ) external nonReentrant {
-        Loan memory loan = retrieveLoan(collectionAddress_, tokenId_, borrower_);
+    function liquidateLoan(uint256 tokenId_, address borrower_) external nonReentrant {
+        Loan memory loan = retrieveLoan(tokenId_, borrower_);
 
         /* check if loan exists */
         require(loan.amountAtStart != 0, "Pool: loan does not exist");
@@ -301,45 +303,48 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* check if loan is not paid back */
         require(loan.amountOwed > 0, "Pool: loan already paid back");
 
-        /* close the loan */
+        /* check if loan is not in liquidation */
+        require(!loan.isInLiquidation, "Pool: loan already in liquidation");
+
+        /* put the loan in liquidation */
         loan.isInLiquidation = true;
 
+        bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
+
         /* remove the loan from the ongoing loans */
-        _ongoingLoans.remove(keccak256(abi.encodePacked(collectionAddress_, tokenId_, borrower_)));
+        _ongoingLoans.remove(loanHash);
 
         /* add the loan to the ongoing liquidations */
-        _ongoingLiquidations.add(
-            keccak256(abi.encodePacked(collectionAddress_, tokenId_, borrower_))
-        );
+        _ongoingLiquidations.add(loanHash);
 
         /* burn wrapped NFT */
         ICollateralWrapper(wrappedNFT).burn(tokenId_);
 
+        address collectionAddress = nftCollection;
+
         /* transfer NFT to liquidator */
-        IERC721(collectionAddress_).safeTransferFrom(address(this), liquidator, tokenId_);
+        IERC721(collectionAddress).safeTransferFrom(address(this), liquidator, tokenId_);
 
         /* call liquidator todo: check with team what price we use as starting liquidation price */
         ICollateralLiquidator(liquidator).liquidate(
-            collectionAddress_,
+            collectionAddress,
             tokenId_,
             loan.amountAtStart
         );
     }
 
-    // todo: review the fact that we use the collection even though it is not needed, maybe the tokenID is enough
     function refundFromLiquidation(
-        address collectionAddress_,
         uint256 tokenId_,
         address borrower_
     ) external payable nonReentrant {
         require(msg.sender == liquidator, "Pool: caller is not liquidator");
 
-        Loan memory loan = retrieveLoan(collectionAddress_, tokenId_, borrower_);
+        Loan memory loan = retrieveLoan(tokenId_, borrower_);
 
-        bytes32 loanHash = keccak256(abi.encodePacked(collectionAddress_, tokenId_, borrower_));
+        bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
 
         /* remove the loan from the ongoing loans */
-        _ongoingLoans.remove(keccak256(abi.encodePacked(collectionAddress_, tokenId_, borrower_)));
+        _ongoingLiquidations.remove(loanHash);
 
         /* update isClosed */
         loan.isClosed = true;
@@ -352,17 +357,15 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     }
 
     /** @dev Allows to retrieve the loan of a borrower.
-     * @param colectionAddress_ The address of the collection of the NFT.
      * @param tokenId_ The ID of the NFT.
      * @param borrower The address of the borrower.
      * @return loan The loan of the borrower.
      */
     function retrieveLoan(
-        address colectionAddress_,
         uint256 tokenId_,
         address borrower
     ) public view returns (Loan memory loan) {
-        return loans[keccak256(abi.encodePacked(colectionAddress_, tokenId_, borrower))];
+        return loans[keccak256(abi.encodePacked(tokenId_, borrower))];
     }
 
     /**************************************************************************/
@@ -424,12 +427,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         loans[loanHash] = loan;
     }
 
-    function _unwrapNFT(address collectionAddress_, uint256 tokenId_, address borrower_) internal {
+    function _unwrapNFT(uint256 tokenId_, address borrower_) internal {
         /* burn wrapped NFT */
         ICollateralWrapper(wrappedNFT).burn(tokenId_);
 
         /* transfer NFT to borrower */
-        IERC721(collectionAddress_).safeTransferFrom(address(this), borrower_, tokenId_);
+        IERC721(nftCollection).safeTransferFrom(address(this), borrower_, tokenId_);
     }
 
     /**************************************************************************/

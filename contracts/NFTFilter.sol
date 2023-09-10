@@ -61,7 +61,8 @@ contract NFTFilter {
      * @notice Emitted when a loan is verified
      * @param collectionAddress_ Address of the collection
      * @param nftID_ ID of the NFT
-     * @param price_ Price of the NFT
+     * @param priceOfNFT_ Price of the NFT
+     * @param priceIncludingFees_ Price of the NFT including the interest rate and protocol fees
      * @param customerAddress_ Address of the customer
      * @param settlementManager_ Address of the settlement manager
      * @param loanTimestamp_ Timestamp of the loan
@@ -69,7 +70,8 @@ contract NFTFilter {
     event LoanVerified(
         address collectionAddress_,
         uint256 nftID_,
-        uint256 price_,
+        uint256 priceOfNFT_,
+        uint256 priceIncludingFees_,
         address customerAddress_,
         address settlementManager_,
         uint256 loanTimestamp_
@@ -96,7 +98,8 @@ contract NFTFilter {
     function verifyLoanValidity(
         address collectionAddress_,
         uint256 nftID_,
-        uint256 price_,
+        uint256 priceOfNFT_,
+        uint256 priceIncludingFees_,
         address customerAddress_,
         address settlementManager_,
         uint256 loanTimestamp_,
@@ -125,7 +128,8 @@ contract NFTFilter {
                     block.chainid,
                     collectionAddress_,
                     nftID_,
-                    price_,
+                    priceOfNFT_,
+                    priceIncludingFees_,
                     customerAddress_,
                     nonce,
                     loanTimestamp_,
@@ -145,7 +149,8 @@ contract NFTFilter {
         emit LoanVerified(
             collectionAddress_,
             nftID_,
-            price_,
+            priceOfNFT_,
+            priceIncludingFees_,
             customerAddress_,
             settlementManager_,
             loanTimestamp_
