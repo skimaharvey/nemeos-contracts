@@ -3,6 +3,7 @@ pragma solidity 0.8.19;
 
 interface IPool {
     function depositERC20(
+        address receiver,
         uint256 assets,
         uint256 dailyInterestRate_
     ) external payable returns (uint256);

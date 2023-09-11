@@ -481,50 +481,66 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     /** @dev Was created in order to deposit native token into the pool when the asset address is address(0).
-     * @param receiver The address of the receiver.
+     * @param receiver_ The address of the receiver.
      * @param dailyInterestRate_ The daily interest rate requested by the lender.
      * @return shares The number of shares minted.
      */
     function depositNativeTokens(
-        address receiver,
+        address receiver_,
         uint256 dailyInterestRate_
     ) external payable returns (uint256) {
+        /* check that asset is ETH or else use the the depositERC20 function */
         require(address(_asset) == address(0), "Pool: asset is not ETH");
+
+        /* check that msg.value is not 0 */
         require(msg.value > 0, "Pool: msg.value is 0");
+
         /* check that max daily interest is respected */
         require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
 
-        require(msg.value <= maxDeposit(receiver), "ERC4626: deposit more than max");
+        require(msg.value <= maxDeposit(receiver_), "ERC4626: deposit more than max");
+
+        /* update the vesting time for lender */
+        _updateVestingTime(dailyInterestRate_);
 
         uint256 shares = previewDeposit(msg.value);
 
         /* update the daily interest rate with current one */
         _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
 
-        _deposit(_msgSender(), receiver, msg.value, shares);
+        _deposit(_msgSender(), receiver_, msg.value, shares);
 
         return shares;
     }
 
     /** @dev Allows to deposit ERC20 tokens into the pool.
+     * @param receiver The address of the receiver.
      * @param assets The amount of assets to be deposited.
      * @param dailyInterestRate_ The daily interest rate requested by the lender.
      * @return shares The number of shares minted.
      */
     function depositERC20(
+        address receiver,
         uint256 assets,
         uint256 dailyInterestRate_
-    ) external payable returns (uint256) {
+    ) external returns (uint256) {
+        /* check that asset is not ETH or else use the the depositNativeTokens function */
+        require(address(_asset) != address(0), "Pool: asset is not ETH");
+
         /* check that max daily interest is respected */
         require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
 
+        require(assets <= maxDeposit(receiver), "ERC4626: deposit more than max");
+
+        /* update the vesting time for lender */
         _updateVestingTime(dailyInterestRate_);
 
-        /* return the shares minted */
-        uint256 shares = deposit(assets, msg.sender);
+        uint256 shares = previewDeposit(assets);
 
-        /* update the daily interest rate */
-        _updateDailyInterestRateOnDeposit(dailyInterestRate_, shares);
+        /* update the daily interest rate with current one */
+        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
+
+        _deposit(_msgSender(), receiver, assets, shares);
 
         return shares;
     }
@@ -599,6 +615,27 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         return shares;
     }
 
+    /** @dev See {IERC4626-mint}.
+     *
+     * As opposed to {deposit}, minting is allowed even if the vault is in a state where the price of a share is zero.
+     * In this case, the shares will be minted without requiring any assets to be deposited.
+     */
+    function mint(uint256 shares, address receiver) public virtual override returns (uint256) {
+        /* check that asset is not ETH or else use the the depositNativeTokens function */
+        require(address(_asset) != address(0), "Pool: asset is ETH");
+
+        require(shares <= maxMint(receiver), "ERC4626: mint more than max");
+
+        uint256 assets = previewMint(shares);
+
+        // /* update the daily interest rate with current one */
+        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
+
+        _deposit(_msgSender(), receiver, assets, shares);
+
+        return assets;
+    }
+
     /** @dev See {IERC4626-redeem}.
      * Was modified to include the vesting logic.
      */
@@ -643,10 +680,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         return shares;
     }
 
-    /** @dev See {IERC4626-maxWithdraw}.
-     * Was modified to return the was is widrawable depending on the balance held by the pool.
+    /** @dev Modified version of {IERC4626-maxWithdraw}
+     * returns what is widrawable depending on the balance held by the pool.
      */
-    function maxWithdraw(address owner) public view override returns (uint256) {
+    function maxWithdrawAvailable(address owner) public view returns (uint256) {
         uint256 expectedBalance = _convertToAssets(balanceOf(owner), MathUpgradeable.Rounding.Down);
         if (expectedBalance >= totalAssets()) {
             return totalAssets();
@@ -655,16 +692,37 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         }
     }
 
-    /** @dev See {IERC4626-totalAssets}.
-     * Was modified to support ETH as an asset, and return the balance of the asset held by the pool.
-     * @return The total value of the assets held by the pool.
+    /** @dev Modified version of {IERC4626-totalAssets} that supports ETH as an asset
+     * @return The total value of the assets held by the pool at the moment.
      */
-    function totalAssets() public view override returns (uint256) {
+    function totalAssetsInPool() public view returns (uint256) {
         if (address(_asset) == address(0)) {
             return address(this).balance;
         } else {
             return _asset.balanceOf(address(this));
         }
+    }
+
+    function totalAssets() public view override returns (uint256) {
+        /* calculate the total amount owed from onGoingLoans */
+        uint256 totatOnGoingLoansAmountOwed;
+        uint256 numberOfOnGoingLoans = _ongoingLoans.length();
+        for (uint256 i = 0; i < numberOfOnGoingLoans; i++) {
+            bytes32 loanHash = _ongoingLoans.at(i);
+            totatOnGoingLoansAmountOwed += loans[loanHash].amountOwed;
+        }
+
+        /* calculate the total amount owed from onGoingLiquidations */
+        uint256 totatOnGoingLiquidationsAmountOwed;
+        uint256 numberOfOnGoingLiquidations = _ongoingLiquidations.length();
+        for (uint256 i = 0; i < numberOfOnGoingLiquidations; i++) {
+            bytes32 loanHash = _ongoingLiquidations.at(i);
+            totatOnGoingLiquidationsAmountOwed += loans[loanHash].amountOwed;
+        }
+
+        /* equals actual balance + sum of amountOwed in onGoingLoans + sum of amountOwed in onGoingLiquidations */
+        return
+            totalAssetsInPool() + totatOnGoingLoansAmountOwed + totatOnGoingLiquidationsAmountOwed;
     }
 
     function _deposit(
@@ -674,6 +732,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 shares
     ) internal override {
         if (address(_asset) != address(0)) {
+            /* safety checks but should not be possible*/
             require(msg.value == 0, "Pool: ETH deposit amount mismatch");
             // If _asset is ERC777, `transferFrom` can trigger a reentrancy BEFORE the transfer happens through the
             // `tokensToSend` hook. On the other hand, the `tokenReceived` hook, that is triggered after the transfer,
