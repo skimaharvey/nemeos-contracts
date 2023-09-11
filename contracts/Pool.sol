@@ -230,6 +230,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         ICollateralWrapper(wrappedNFT).mint(tokenId_, msg.sender);
     }
 
+    /** @dev Allows to refund a loan.
+     * @param tokenId_ The ID of the NFT.
+     * @param borrower_ The address of the borrower.
+     */
     function refundLoan(uint256 tokenId_, address borrower_) external payable nonReentrant {
         Loan memory loan = retrieveLoan(tokenId_, borrower_);
 
@@ -282,6 +286,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         loans[loanHash] = loan;
     }
 
+    /** @dev Allows to liquidate a loan when paiement is late.
+     * @param tokenId_ The ID of the NFT.
+     * @param borrower_ The address of the borrower.
+     */
     function liquidateLoan(uint256 tokenId_, address borrower_) external nonReentrant {
         Loan memory loan = retrieveLoan(tokenId_, borrower_);
 
@@ -324,6 +332,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         );
     }
 
+    /** @dev Called by the liquidator contract to refund the pool after liquidation.
+     * @param tokenId_  The ID of the NFT.
+     * @param borrower_  The address of the borrower.
+     */
     function refundFromLiquidation(
         uint256 tokenId_,
         address borrower_
@@ -359,7 +371,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         return onGoingLoansArray;
     }
 
-    /** @dev Allows to retrieve the loan of a borrower.
+    /** @dev Allows to retrieve a specific loan.
      * @param tokenId_ The ID of the NFT.
      * @param borrower The address of the borrower.
      * @return loan The loan of the borrower.
@@ -371,6 +383,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         return loans[keccak256(abi.encodePacked(tokenId_, borrower))];
     }
 
+    /** @dev Allows to calculate the price of a loan.
+     * @param remainingLoanAmount_ The remaining amount of the loan.
+     * @param loanDurationInDays_ The duration of the loan in days.
+     * @return totalAmountOwed The total amount to be paid back.
+     * @return interestAmount The amount of interest to be paid back.
+     */
     function calculateLoanPrice(
         uint256 remainingLoanAmount_,
         uint256 loanDurationInDays_
@@ -463,6 +481,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     /** @dev Was created in order to deposit native token into the pool when the asset address is address(0).
+     * @param receiver The address of the receiver.
+     * @param dailyInterestRate_ The daily interest rate requested by the lender.
+     * @return shares The number of shares minted.
      */
     function depositNativeTokens(
         address receiver,
@@ -485,6 +506,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         return shares;
     }
 
+    /** @dev Allows to deposit ERC20 tokens into the pool.
+     * @param assets The amount of assets to be deposited.
+     * @param dailyInterestRate_ The daily interest rate requested by the lender.
+     * @return shares The number of shares minted.
+     */
     function depositERC20(
         uint256 assets,
         uint256 dailyInterestRate_
