@@ -371,7 +371,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         return onGoingLoansArray;
     }
 
-    /** @dev Allows to retrieve the loan of a borrower.
+    /** @dev Allows to retrieve a specific loan.
      * @param tokenId_ The ID of the NFT.
      * @param borrower The address of the borrower.
      * @return loan The loan of the borrower.
