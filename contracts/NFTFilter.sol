@@ -138,7 +138,6 @@ contract NFTFilter {
             )
         );
 
-        // todo: check if we will use this address or the pool to verify the signature
         /* check that the signature is valid */
         address signer = ECDSA.recover(encodedMessageHash, signature);
 
