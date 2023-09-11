@@ -102,8 +102,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* State */
     /**************************************************************************/
 
-    /* Number of days you will need to vest for per pecent you are lending at*/
-    uint256 public vestingTimePerPerCentInterest = 3 days;
+    /* Number of time you will need to vest for per basis point you are lending at*/
+    uint256 public vestingTimePerBasisPoint;
 
     /* The daily interest rate */
     uint256 public dailyInterestRate;
@@ -120,8 +120,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* All ongoing liquidations */
     EnumerableSet.Bytes32Set private _ongoingLiquidations;
 
-    /* Vesting time per borrower */
-    mapping(address => uint256) public vestingTimePerBorrower;
+    /* Vesting time per lender */
+    mapping(address => uint256) public vestingTimePerLender;
 
     /**************************************************************************/
     /* Constructor */
@@ -157,6 +157,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         liquidator = liquidator_;
         NFTFilter = NFTFilter_;
         protocolFeeCollector = protocolFeeCollector_;
+        vestingTimePerBasisPoint = 12 hours; // todo: check with team
 
         // todo: check the naming with team
         string memory collectionName = string.concat(
@@ -506,7 +507,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 shares = previewDeposit(msg.value);
 
         /* update the daily interest rate with current one */
-        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
+        _updateDailyInterestRateOnDeposit(dailyInterestRate_, shares);
 
         _deposit(_msgSender(), receiver_, msg.value, shares);
 
@@ -538,7 +539,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 shares = previewDeposit(assets);
 
         /* update the daily interest rate with current one */
-        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
+        _updateDailyInterestRateOnDeposit(dailyInterestRate_, shares);
 
         _deposit(_msgSender(), receiver, assets, shares);
 
@@ -550,11 +551,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     function _updateVestingTime(uint256 dailyInterestRate_) internal {
-        uint256 currentVestingTime = vestingTimePerBorrower[msg.sender];
-        uint256 newVestingTime = (dailyInterestRate_ * vestingTimePerPerCentInterest) /
-            BASIS_POINTS;
+        uint256 currentVestingTime = vestingTimePerLender[msg.sender];
+        uint256 newVestingTime = block.timestamp + (dailyInterestRate_ * vestingTimePerBasisPoint);
         if (currentVestingTime < newVestingTime) {
-            vestingTimePerBorrower[msg.sender] = newVestingTime;
+            vestingTimePerLender[msg.sender] = newVestingTime;
         }
     }
 
@@ -644,10 +644,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         address receiver,
         address owner
     ) public virtual override returns (uint256) {
-        require(
-            block.timestamp >= vestingTimePerBorrower[owner],
-            "Pool: vesting time not respected"
-        );
+        require(block.timestamp >= vestingTimePerLender[owner], "Pool: vesting time not respected");
 
         require(shares <= maxRedeem(owner), "ERC4626: redeem more than max");
 
@@ -666,10 +663,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         address owner
     ) public override returns (uint256) {
         /* check that vesting time is respected */
-        require(
-            block.timestamp >= vestingTimePerBorrower[owner],
-            "Pool: vesting time not respected"
-        );
+        require(block.timestamp >= vestingTimePerLender[owner], "Pool: vesting time not respected");
 
         require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
 
@@ -782,12 +776,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* Admin API */
     /**************************************************************************/
 
-    function updateVestingTimePerPerCentInterest(uint256 vestingTimePerPerCentInterest_) external {
+    function updateVestingTimePerBasisPoint(uint256 vestingTimePerBasisPoint_) external {
         require(
             msg.sender == protocolFeeCollector,
-            "Pool: Only protocol fee collector can update vestingTimePerPerCentInterest"
+            "Pool: Only protocol fee collector can update vestingTimePerBasisPoint"
         );
-        vestingTimePerPerCentInterest = vestingTimePerPerCentInterest_;
+        vestingTimePerBasisPoint = vestingTimePerBasisPoint_;
     }
 
     // TODO: add pause/unpause logic
