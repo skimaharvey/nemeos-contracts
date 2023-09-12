@@ -528,6 +528,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* check that asset is not ETH or else use the the depositNativeTokens function */
         require(address(_asset) != address(0), "Pool: asset is not ETH");
 
+        /* check that assets is superior to 0 */
+        require(assets != 0, "Pool: assets is 0");
+
         /* check that max daily interest is respected */
         require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
 
@@ -740,6 +743,19 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         _mint(receiver, shares);
         emit Deposit(caller, receiver, assets, shares);
+    }
+
+    // todo: fuzz function
+    function _convertToShares(
+        uint256 assets,
+        MathUpgradeable.Rounding rounding
+    ) internal view override returns (uint256) {
+        return
+            assets.mulDiv(
+                totalSupply() + 10 ** _decimalsOffset(),
+                totalAssets() - msg.value + 1, // remove msg.value as it is already accounted for in totalAssets()
+                rounding
+            );
     }
 
     // Todo: add the vesting logic
