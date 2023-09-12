@@ -330,7 +330,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         ICollateralLiquidator(liquidator).liquidate(
             collectionAddress,
             tokenId_,
-            loan.amountAtStart
+            loan.amountAtStart,
+            borrower_
         );
     }
 
