@@ -43,17 +43,15 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     struct Loan {
-        // address borrower; // might not be needed
-        // address collection; // might not be needed
-        // uint256 tokenId; // might not be needed
         uint256 amountAtStart;
-        uint256 amountOwed;
+        uint256 amountOwedWithInterest;
         uint256 nextPaiementAmount;
+        uint256 interestAmountPerPaiement;
         uint256 loanDuration;
-        uint256 interestAmount;
         uint256 startTime;
         uint256 endTime;
         uint256 nextPaymentTime;
+        uint160 remainingNumberOfInstallments;
         bool isClosed;
         bool isInLiquidation;
     }
@@ -251,17 +249,20 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         );
 
         /* check if loan is not paid back */
-        require(loan.amountOwed > 0, "Pool: loan already paid back");
+        require(loan.amountOwedWithInterest > 0, "Pool: loan already paid back");
 
         /* check if msg.value is equal to next payment amount */
         require(msg.value == loan.nextPaiementAmount, "Pool: msg.value not equal to next payment");
 
         /* update the loan */
-        loan.amountOwed -= msg.value;
+        loan.amountOwedWithInterest -= msg.value;
+
+        /* update the loan number of installement */
+        loan.remainingNumberOfInstallments -= 1;
 
         bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
 
-        if (loan.amountOwed == 0) {
+        if (loan.amountOwedWithInterest == 0) {
             /* next payment time is now */
             loan.nextPaymentTime = block.timestamp;
 
@@ -278,8 +279,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             _unwrapNFT(tokenId_, borrower_);
         } else {
             loan.nextPaymentTime += MAX_LOAN_REFUND_INTERVAL;
-            loan.nextPaiementAmount = loan.amountOwed <= loan.nextPaiementAmount
-                ? loan.amountOwed
+            loan.nextPaiementAmount = loan.amountOwedWithInterest <= loan.nextPaiementAmount
+                ? loan.amountOwedWithInterest
                 : loan.nextPaiementAmount;
         }
 
@@ -304,7 +305,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         require(block.timestamp >= loan.nextPaymentTime, "Pool: loan paiement not late");
 
         /* check if loan is not paid back */
-        require(loan.amountOwed > 0, "Pool: loan already paid back");
+        require(loan.amountOwedWithInterest > 0, "Pool: loan already paid back");
 
         bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
 
@@ -387,22 +388,58 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /** @dev Allows to calculate the price of a loan.
      * @param remainingLoanAmount_ The remaining amount of the loan.
      * @param loanDurationInDays_ The duration of the loan in days.
-     * @return totalAmountOwed The total amount to be paid back.
-     * @return interestAmount The amount of interest to be paid back.
+     * @return adjustedRemainingLoanAmountWithInterest The total amount to be paid back with interest.
+     * @return interestAmount The amount of interest to be paid back per paiement.
+     * @return nextPaiementAmount The amount to be paid back per paiement.
      */
     function calculateLoanPrice(
         uint256 remainingLoanAmount_,
         uint256 loanDurationInDays_
-    ) public view returns (uint256, uint256) {
-        /* check if pool has enough */
-        require(remainingLoanAmount_ <= totalAssets(), "Pool: not enough assets");
+    ) public view returns (uint256, uint256, uint256, uint160) {
+        /* check if pool has enough balance*/
+        if (address(_asset) != address(0)) {
+            require(
+                remainingLoanAmount_ <= _asset.balanceOf(address(this)),
+                "Pool: not enough assets"
+            );
+        } else {
+            require(remainingLoanAmount_ <= address(this).balance, "Pool: not enough assets");
+        }
+
+        /* number of paiements installments */
+        uint256 numberOfInstallments = loanDurationInDays_ % (MAX_LOAN_REFUND_INTERVAL / 1 days) ==
+            0
+            ? loanDurationInDays_ / (MAX_LOAN_REFUND_INTERVAL / 1 days)
+            : (loanDurationInDays_ / (MAX_LOAN_REFUND_INTERVAL / 1 days)) + 1;
 
         /* calculate the interests where interest amount is equal number of days * daily interest */
-        uint256 interestAmount = (remainingLoanAmount_ * dailyInterestRate * loanDurationInDays_) /
-            BASIS_POINTS;
+        uint256 totalInterestAmount = (remainingLoanAmount_ *
+            dailyInterestRate *
+            loanDurationInDays_) / BASIS_POINTS;
+
+        /* calculate the interest amount per paiement */
+        uint256 interestAmountPerPaiement = totalInterestAmount % numberOfInstallments == 0
+            ? totalInterestAmount / numberOfInstallments
+            : (totalInterestAmount / numberOfInstallments) + 1;
+
+        /* calculate the total amount to be paid back with interest */
+        uint256 adjustedRemainingLoanAmountWithInterest = remainingLoanAmount_ +
+            interestAmountPerPaiement *
+            numberOfInstallments;
+
+        uint256 nextPaiementAmount = adjustedRemainingLoanAmountWithInterest %
+            numberOfInstallments ==
+            0
+            ? adjustedRemainingLoanAmountWithInterest / numberOfInstallments
+            : (adjustedRemainingLoanAmountWithInterest / numberOfInstallments) + 1;
 
         /* calculate the amount to be paid back */
-        return (remainingLoanAmount_ + interestAmount, interestAmount);
+        return (
+            adjustedRemainingLoanAmountWithInterest,
+            interestAmountPerPaiement,
+            nextPaiementAmount,
+            uint160(numberOfInstallments)
+        );
     }
 
     /**************************************************************************/
@@ -418,14 +455,16 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* calculate the number of days of the loan */
         uint256 loanDurationInDays = loanDuration_ / 1 days;
 
-        (uint256 totalAmountOwed, uint256 interestAmount) = calculateLoanPrice(
-            remainingLoanAmount_,
-            loanDurationInDays
-        );
+        (
+            uint256 amountOwedWithInterest,
+            uint256 interestAmountPerPaiement,
+            uint256 nextPaiementAmount,
+            uint160 numberOfInstallments
+        ) = calculateLoanPrice(remainingLoanAmount_, loanDurationInDays);
 
         /* check if the amount to be paid back is not too high */
         require(
-            totalAmountOwed + msg.value <= priceIncludingFees_,
+            amountOwedWithInterest + msg.value <= priceIncludingFees_,
             "Pool: amount to be paid back too high"
         );
 
@@ -437,23 +476,16 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             ? block.timestamp + MAX_LOAN_REFUND_INTERVAL
             : block.timestamp + loanDuration_;
 
-        /* calculate the number of paiements installments */
-        uint256 numberOfInstallments = loanDurationInDays / (MAX_LOAN_REFUND_INTERVAL / 1 days);
-
-        /* calculate the next paiement amount */
-        uint256 nextPaiementAmount = totalAmountOwed % numberOfInstallments == 0
-            ? totalAmountOwed / numberOfInstallments
-            : (totalAmountOwed / numberOfInstallments) + 1;
-
         Loan memory loan = Loan({
-            amountAtStart: remainingLoanAmount_ + msg.value,
-            amountOwed: totalAmountOwed,
+            amountAtStart: amountOwedWithInterest + msg.value,
+            amountOwedWithInterest: amountOwedWithInterest,
             nextPaiementAmount: nextPaiementAmount,
+            interestAmountPerPaiement: interestAmountPerPaiement,
             loanDuration: loanDuration_,
-            interestAmount: interestAmount,
             startTime: block.timestamp,
             endTime: endTime,
             nextPaymentTime: nextPaymentTime,
+            remainingNumberOfInstallments: numberOfInstallments,
             isClosed: false,
             isInLiquidation: false
         });
@@ -466,7 +498,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* store the loan */
         loans[loanHash] = loan;
 
-        return totalAmountOwed;
+        return amountOwedWithInterest;
     }
 
     function _unwrapNFT(uint256 tokenId_, address borrower_) internal {
@@ -706,7 +738,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 numberOfOnGoingLoans = _ongoingLoans.length();
         for (uint256 i = 0; i < numberOfOnGoingLoans; i++) {
             bytes32 loanHash = _ongoingLoans.at(i);
-            totatOnGoingLoansAmountOwed += loans[loanHash].amountOwed;
+            Loan memory loan = loans[loanHash];
+            totatOnGoingLoansAmountOwed += (loan.amountOwedWithInterest -
+                (loan.remainingNumberOfInstallments * loan.interestAmountPerPaiement));
         }
 
         /* calculate the total amount owed from onGoingLiquidations */
@@ -714,7 +748,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 numberOfOnGoingLiquidations = _ongoingLiquidations.length();
         for (uint256 i = 0; i < numberOfOnGoingLiquidations; i++) {
             bytes32 loanHash = _ongoingLiquidations.at(i);
-            totatOnGoingLiquidationsAmountOwed += loans[loanHash].amountOwed;
+            Loan memory loan = loans[loanHash];
+            totatOnGoingLiquidationsAmountOwed += (loan.amountOwedWithInterest -
+                (loan.remainingNumberOfInstallments * loan.interestAmountPerPaiement));
         }
 
         /* equals actual balance + sum of amountOwed in onGoingLoans + sum of amountOwed in onGoingLiquidations */

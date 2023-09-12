@@ -1116,7 +1116,7 @@ describe('Pool', async () => {
 
         // verify that loan is paid back
         const loan = await poolProxy.retrieveLoan(tokenId, borrower.address);
-        expect(loan.amountOwed).to.be.equal(0);
+        expect(loan.amountOwedWithInterest).to.be.equal(0);
 
         // verify that loan is closed
         expect(loan.isClosed).to.be.true;
