@@ -1472,58 +1472,219 @@ describe('Pool', async () => {
         const lender1SharesAfter = await poolProxy.balanceOf(lender1.address);
         expect(lender1SharesAfter).to.not.be.equal(0);
       });
-    });
 
-    it('should be able to withdraw', async () => {
-      const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+      it('should be able to withdraw (after vesting time)', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
 
-      const depositAmount = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(lender1)
-        .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
-          value: depositAmount,
+        const depositAmount = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: depositAmount,
+          });
+
+        const twelveHoursInSeconds = 12 * 60 * 60;
+        const vestingTime = twelveHoursInSeconds * initialDailyInterestRateInBps;
+
+        // advance blockchain to vesting time
+        await ethers.provider.send('evm_increaseTime', [vestingTime]);
+
+        const lender1BalanceBeforeWithdraw = await ethers.provider.getBalance(lender1.address);
+
+        const lender1Shares = await poolProxy.balanceOf(lender1.address);
+
+        await poolProxy.connect(lender1).redeem(lender1Shares, lender1.address, lender1.address);
+
+        const lender1SharesAfter = await poolProxy.balanceOf(lender1.address);
+        expect(lender1SharesAfter).to.be.equal(0);
+
+        const lender1BalanceAfterWithdraw = await ethers.provider.getBalance(lender1.address);
+        expect(lender1BalanceAfterWithdraw).to.be.greaterThan(lender1BalanceBeforeWithdraw);
+      });
+
+      it('vesting time should increase when depositing with a higher interest rate', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: depositAmount,
+          });
+
+        const vestingTimeBefore = await poolProxy.vestingTimePerLender(lender1.address);
+
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps + 1, {
+            value: depositAmount,
+          });
+
+        const vestingTimeAfter = await poolProxy.vestingTimePerLender(lender1.address);
+
+        expect(vestingTimeAfter).to.be.greaterThan(vestingTimeBefore);
+      });
+
+      it('vesting time should not decrease when depositing with a lower interest rate', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: depositAmount,
+          });
+
+        const vestingTimeBefore = await poolProxy.vestingTimePerLender(lender1.address);
+
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps - 1, {
+            value: depositAmount,
+          });
+
+        const vestingTimeAfter = await poolProxy.vestingTimePerLender(lender1.address);
+
+        expect(vestingTimeAfter).to.be.equal(vestingTimeBefore);
+      });
+
+      // this test is a bit weird as it will not be always the case (some refund or liquidation could happen before depositing)
+      it('should return number of shares returned by previewDeposit', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
+
+        const lender1SharesBefore = await poolProxy.balanceOf(lender1.address);
+
+        const lender1SharesPreview = await poolProxy.previewDeposit(depositAmount);
+
+        expect(lender1SharesPreview).to.not.be.equal(0);
+
+        const tx = await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: depositAmount,
+          });
+
+        const receipt = await tx.wait();
+
+        const lender1SharesAfter = await poolProxy.balanceOf(lender1.address);
+
+        expect(lender1SharesPreview).to.be.equal(lender1SharesAfter.sub(lender1SharesBefore));
+      });
+
+      it('should revert if interest daily rate is too high', async () => {
+        const { poolProxy, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
+
+        const maxInterestRate = await poolProxy.MAX_INTEREST_RATE();
+
+        await expect(
+          poolProxy.connect(lender1).depositNativeTokens(lender1.address, maxInterestRate.add(1), {
+            value: depositAmount,
+          }),
+        ).to.be.revertedWith('Pool: daily interest rate too high');
+      });
+
+      it('should revert if trying to withdraw before vesting time', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: depositAmount,
+          });
+
+        const twelveHoursInSeconds = 12 * 60 * 60;
+        const vestingTime = twelveHoursInSeconds * initialDailyInterestRateInBps;
+
+        // advance blockchain to vesting time - 1
+        await ethers.provider.send('evm_increaseTime', [vestingTime - 1]);
+
+        const lender1Shares = await poolProxy.balanceOf(lender1.address);
+
+        await expect(
+          poolProxy.connect(lender1).redeem(lender1Shares, lender1.address, lender1.address),
+        ).to.be.revertedWith('Pool: vesting time not respected');
+      });
+
+      describe('when two lenders deposit', async () => {
+        it('lender1 vesting time should not be impacted by lender2 deposit', async () => {
+          const { poolProxy, initialDailyInterestRateInBps, lender1, lender2 } =
+            await buildTestContext();
+
+          const depositAmount = ethers.utils.parseEther('100');
+          await poolProxy
+            .connect(lender1)
+            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+              value: depositAmount,
+            });
+
+          const vestingTimeLender1Before = await poolProxy.vestingTimePerLender(lender1.address);
+
+          await poolProxy
+            .connect(lender2)
+            .depositNativeTokens(lender2.address, initialDailyInterestRateInBps * 2, {
+              value: depositAmount,
+            });
+
+          const vestingTimeLender1After = await poolProxy.vestingTimePerLender(lender1.address);
+
+          expect(vestingTimeLender1After).to.be.equal(vestingTimeLender1Before);
         });
 
-      const twelveHoursInSeconds = 12 * 60 * 60;
-      const vestingTime = twelveHoursInSeconds * initialDailyInterestRateInBps;
+        it('when lender2 deposit with a lower interest rate, dailyInterestRate should decrease', async () => {
+          const { poolProxy, initialDailyInterestRateInBps, lender1, lender2 } =
+            await buildTestContext();
 
-      // advance blockchain to vesting time
-      await ethers.provider.send('evm_increaseTime', [vestingTime]);
+          const depositAmount = ethers.utils.parseEther('100');
 
-      const lender1BalanceBeforeWithdraw = await ethers.provider.getBalance(lender1.address);
+          await poolProxy
+            .connect(lender1)
+            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+              value: depositAmount,
+            });
 
-      const lender1Shares = await poolProxy.balanceOf(lender1.address);
+          const dailyInterestRateBefore = await poolProxy.dailyInterestRate();
 
-      await poolProxy.connect(lender1).redeem(lender1Shares, lender1.address, lender1.address);
+          await poolProxy
+            .connect(lender2)
+            .depositNativeTokens(lender2.address, initialDailyInterestRateInBps * 0.5, {
+              value: depositAmount,
+            });
 
-      const lender1SharesAfter = await poolProxy.balanceOf(lender1.address);
-      expect(lender1SharesAfter).to.be.equal(0);
+          const dailyInterestRateAfter = await poolProxy.dailyInterestRate();
 
-      const lender1BalanceAfterWithdraw = await ethers.provider.getBalance(lender1.address);
-      expect(lender1BalanceAfterWithdraw).to.be.greaterThan(lender1BalanceBeforeWithdraw);
-    });
-
-    it('should revert if trying to withdraw before vesting time', async () => {
-      const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
-
-      const depositAmount = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(lender1)
-        .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
-          value: depositAmount,
+          expect(dailyInterestRateAfter).to.be.lessThan(dailyInterestRateBefore);
         });
 
-      const twelveHoursInSeconds = 12 * 60 * 60;
-      const vestingTime = twelveHoursInSeconds * initialDailyInterestRateInBps;
+        it('when lender2 deposit with a higher interest rate, dailyInterestRate should increase', async () => {
+          const { poolProxy, initialDailyInterestRateInBps, lender1, lender2 } =
+            await buildTestContext();
 
-      // advance blockchain to vesting time - 1
-      await ethers.provider.send('evm_increaseTime', [vestingTime - 1]);
+          const depositAmount = ethers.utils.parseEther('100');
 
-      const lender1Shares = await poolProxy.balanceOf(lender1.address);
+          await poolProxy
+            .connect(lender1)
+            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+              value: depositAmount,
+            });
 
-      await expect(
-        poolProxy.connect(lender1).redeem(lender1Shares, lender1.address, lender1.address),
-      ).to.be.revertedWith('Pool: vesting time not respected');
+          const dailyInterestRateBefore = await poolProxy.dailyInterestRate();
+
+          await poolProxy
+            .connect(lender2)
+            .depositNativeTokens(lender2.address, initialDailyInterestRateInBps * 2, {
+              value: depositAmount,
+            });
+
+          const dailyInterestRateAfter = await poolProxy.dailyInterestRate();
+
+          expect(dailyInterestRateAfter).to.be.greaterThan(dailyInterestRateBefore);
+        });
+      });
     });
   });
 });
