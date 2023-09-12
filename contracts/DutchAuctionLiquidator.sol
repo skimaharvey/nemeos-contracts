@@ -37,6 +37,7 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
         uint256 startingPrice;
         uint256 startingTimeStamp;
         uint256 endingTimeStamp;
+        address borrower;
     }
 
     /**************************************************************************/
@@ -78,7 +79,7 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
     /**
      * @notice Liquidation duration
      */
-    uint64 public _liquidationDuration;
+    uint64 public _liquidationDuration = 15 days;
 
     /**
      * @notice Address of the pools factory
@@ -122,7 +123,8 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
     function liquidate(
         address collateralToken_,
         uint256 collateralTokenId_,
-        uint256 startingPrice_
+        uint256 startingPrice_,
+        address borrower_
     ) external nonReentrant {
         /* Check if caller is a pool */
         require(IPoolFactory(poolsFactory).isPool(msg.sender), "Liquidator: Caller is not a pool");
@@ -141,7 +143,8 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
             tokenId: collateralTokenId_,
             startingPrice: startingPrice_,
             startingTimeStamp: block.timestamp,
-            endingTimeStamp: block.timestamp + _liquidationDuration
+            endingTimeStamp: block.timestamp + _liquidationDuration,
+            borrower: borrower_
         });
 
         /* Emit LiquidationStarted */
@@ -179,7 +182,10 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
         emit LiquidationEnded(collateralToken, collateralTokenId, msg.sender, currentPrice);
 
         /* Transfer bid amount to pool */
-        IPool(liquidation.pool).refundFromLiquidation{value: msg.value}(liquidation.tokenId);
+        IPool(liquidation.pool).refundFromLiquidation{value: msg.value}(
+            liquidation.tokenId,
+            liquidation.borrower
+        );
 
         /* Transfer collateral to winner */
         IERC721(collateralToken).safeTransferFrom(address(this), msg.sender, collateralTokenId);
@@ -234,11 +240,11 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
         uint256 duration = endingAt - startedAt;
         uint256 timeElapsed = block.timestamp - startedAt;
 
-        if (timeElapsed >= duration) {
+        uint256 priceDrop = (startingPrice * timeElapsed) / duration;
+
+        if (priceDrop >= startingPrice) {
             return 0;
         }
-
-        uint256 priceDrop = (startingPrice * timeElapsed) / duration;
         return startingPrice - priceDrop;
     }
 }
