@@ -1,8 +1,7 @@
 import { ethers } from 'hardhat';
 
-const FACTORY_IMPLEMENTATION = '';
-const ADDRESS_ORACLE = '';
-const SETTLEMENT_MANAGERS = [''];
+const ADDRESS_ORACLE = '0x1BBcaB52070b25CF716C32e53791146A7525cddE';
+const SETTLEMENT_MANAGERS = ['0xF7eea5164fA57a0dbC2eFBdf18e09062bebCCa4b'];
 
 async function main() {
   const [deployer] = await ethers.getSigners();
