@@ -2,7 +2,7 @@ import { HardhatUserConfig } from 'hardhat/config';
 import 'dotenv/config';
 import '@nomicfoundation/hardhat-toolbox';
 
-const { INFURA_KEY } = process.env;
+const { INFURA_KEY, PVT_KEY } = process.env;
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -25,6 +25,10 @@ const config: HardhatUserConfig = {
         blockNumber: 18002230,
       },
       chainId: 1,
+    },
+    goerli: {
+      url: `https://goerli.infura.io/v3/${INFURA_KEY}`,
+      accounts: [`0x${PVT_KEY}`],
     },
   },
 };
