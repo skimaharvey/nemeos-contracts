@@ -19,8 +19,16 @@ describe('Pool', async () => {
   });
 
   const buildTestContext = async () => {
-    const [poolFactoryOwner, protocolFeeCollector, proxyAdmin, oracleSigner, borrower, randomUser] =
-      await ethers.getSigners();
+    const [
+      poolFactoryOwner,
+      protocolFeeCollector,
+      proxyAdmin,
+      oracleSigner,
+      borrower,
+      randomUser,
+      lender1,
+      lender2,
+    ] = await ethers.getSigners();
 
     const ethWhale = '0xda9dfa130df4de4673b89022ee50ff26f6ea73cf';
     const impersonatedWhaleSigner = await ethers.getImpersonatedSigner(ethWhale);
@@ -144,854 +152,875 @@ describe('Pool', async () => {
       borrower,
       dutchAuctionLiquidatorFactory,
       tokenContract,
+      lender1,
+      lender2,
     };
   };
 
-  describe('Buy NFT', async () => {
-    it('should be able to buy NFT from Seaport', async () => {
-      const {
-        poolProxy,
-        impersonatedWhaleSigner,
-        initialDailyInterestRateInBps,
-        seaportSettlementManager,
-        loanToValueInBps,
-        collectionAddress,
-        oracleSigner,
-        borrower,
-      } = await buildTestContext();
-
-      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
-
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
-
-      // deposit into pool
-      const deposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: deposit,
-        });
-
-      const loanDurationInDays = 30;
-      const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
-
-      // remaining to be paid
-      const remainingToBePaid = nftPrice - ltvValue;
-
-      const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
-
-      // calculate LoanPrice from NFT price
-      const [loanPrice] = await poolProxy.calculateLoanPrice(
-        remainingToBePaidInBN,
-        loanDurationInDays,
-      );
-
-      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
-
-      const oracleSignature = await mockSignLoan(
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        borrower.address,
-        0,
-        loanTimestamp,
-        orderExtraData,
-        oracleSigner,
-      );
-
-      // buy NFT
-      await buyNFTHelper(
-        poolProxy,
-        borrower,
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        seaportSettlementManager,
-        loanTimestamp,
-        loanDurationInSeconds,
-        orderExtraData,
-        oracleSignature,
-        BigNumber.from(ltvValue.toString()),
-      );
-    });
-
-    it('should revert when trying to buy NFT with a duration of less than a day', async () => {
-      const {
-        poolProxy,
-        impersonatedWhaleSigner,
-        initialDailyInterestRateInBps,
-        seaportSettlementManager,
-        loanToValueInBps,
-        collectionAddress,
-        oracleSigner,
-        borrower,
-      } = await buildTestContext();
-
-      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
-
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
-
-      // deposit into pool
-      const deposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: deposit,
-        });
-
-      const oracleSignature = await mockSignLoan(
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        BigNumber.from(nftPrice.toString()),
-        borrower.address,
-        0,
-        loanTimestamp,
-        orderExtraData,
-        oracleSigner,
-      );
-
-      // try to buy NFT with a duration of less than a day
-      await expect(
-        buyNFTHelper(
+  describe('Borrower', async () => {
+    describe('Buy NFT', async () => {
+      it('should be able to buy NFT from Seaport', async () => {
+        const {
           poolProxy,
+          impersonatedWhaleSigner,
+          initialDailyInterestRateInBps,
+          seaportSettlementManager,
+          loanToValueInBps,
+          collectionAddress,
+          oracleSigner,
           borrower,
+        } = await buildTestContext();
+
+        const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+          await buyNFTPreparationHelper();
+
+        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+
+        // deposit into pool
+        const deposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: deposit,
+          });
+
+        const loanDurationInDays = 30;
+        const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+
+        // remaining to be paid
+        const remainingToBePaid = nftPrice - ltvValue;
+
+        const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+
+        // calculate LoanPrice from NFT price
+        const [loanPrice] = await poolProxy.calculateLoanPrice(
+          remainingToBePaidInBN,
+          loanDurationInDays,
+        );
+
+        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+
+        const oracleSignature = await mockSignLoan(
           collectionAddress,
           tokenId,
           BigNumber.from(nftPrice.toString()),
-          BigNumber.from(nftPrice.toString()),
-          seaportSettlementManager,
-          loanTimestamp,
+          priceWithInterest,
+          borrower.address,
           0,
+          loanTimestamp,
           orderExtraData,
-          oracleSignature,
-          BigNumber.from(ltvValue.toString()),
-        ),
-      ).to.be.revertedWith('Pool: loan duration too short');
-    });
+          oracleSigner,
+        );
 
-    it('should revert when trying to buy NFT with a duration of more than 90 days', async () => {
-      const {
-        poolProxy,
-        impersonatedWhaleSigner,
-        initialDailyInterestRateInBps,
-        seaportSettlementManager,
-        loanToValueInBps,
-        collectionAddress,
-        oracleSigner,
-        borrower,
-      } = await buildTestContext();
-
-      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
-
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
-
-      // deposit into pool
-      const deposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: deposit,
-        });
-
-      const oracleSignature = await mockSignLoan(
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        BigNumber.from(nftPrice.toString()),
-        borrower.address,
-        0,
-        loanTimestamp,
-        orderExtraData,
-        oracleSigner,
-      );
-
-      const ninetyOneDaysInSeconds = 91 * 24 * 60 * 60;
-
-      // try to buy NFT with a duration of less than a day
-      await expect(
-        buyNFTHelper(
+        // buy NFT
+        await buyNFTHelper(
           poolProxy,
           borrower,
           collectionAddress,
           tokenId,
           BigNumber.from(nftPrice.toString()),
-          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
           seaportSettlementManager,
           loanTimestamp,
-          ninetyOneDaysInSeconds,
+          loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
           BigNumber.from(ltvValue.toString()),
-        ),
-      ).to.be.revertedWith('Pool: loan duration too long');
-    });
+        );
+      });
 
-    it('should revert when trying to buy NFT with too low LTV', async () => {
-      const {
-        poolProxy,
-        impersonatedWhaleSigner,
-        initialDailyInterestRateInBps,
-        seaportSettlementManager,
-        loanToValueInBps,
-        collectionAddress,
-        oracleSigner,
-        borrower,
-      } = await buildTestContext();
+      it('should revert when trying to buy NFT with a duration of less than a day', async () => {
+        const {
+          poolProxy,
+          impersonatedWhaleSigner,
+          initialDailyInterestRateInBps,
+          seaportSettlementManager,
+          loanToValueInBps,
+          collectionAddress,
+          oracleSigner,
+          borrower,
+        } = await buildTestContext();
 
-      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
+        const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+          await buyNFTPreparationHelper();
 
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
 
-      // deposit into pool
-      const deposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: deposit,
-        });
+        // deposit into pool
+        const deposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: deposit,
+          });
 
-      const loanDurationInDays = 30;
-      const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+        const oracleSignature = await mockSignLoan(
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          BigNumber.from(nftPrice.toString()),
+          borrower.address,
+          0,
+          loanTimestamp,
+          orderExtraData,
+          oracleSigner,
+        );
 
-      // remaining to be paid
-      const remainingToBePaid = nftPrice - ltvValue;
-
-      const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
-
-      // calculate LoanPrice from NFT price
-      const [loanPrice] = await poolProxy.calculateLoanPrice(
-        remainingToBePaidInBN,
-        loanDurationInDays,
-      );
-
-      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
-
-      const oracleSignature = await mockSignLoan(
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        borrower.address,
-        0,
-        loanTimestamp,
-        orderExtraData,
-        oracleSigner,
-      );
-
-      await expect(
-        poolProxy
-          .connect(borrower)
-          .buyNFT(
+        // try to buy NFT with a duration of less than a day
+        await expect(
+          buyNFTHelper(
+            poolProxy,
+            borrower,
             collectionAddress,
             tokenId,
             BigNumber.from(nftPrice.toString()),
-            BigNumber.from(priceWithInterest.toString()),
-            seaportSettlementManager.address,
+            BigNumber.from(nftPrice.toString()),
+            seaportSettlementManager,
             loanTimestamp,
-            loanDurationInSeconds,
+            0,
             orderExtraData,
             oracleSignature,
-            { value: BigNumber.from(ltvValue.toString()).sub(1) },
+            BigNumber.from(ltvValue.toString()),
           ),
-      ).to.be.revertedWith('Pool: LTV not respected');
-    });
+        ).to.be.revertedWith('Pool: loan duration too short');
+      });
 
-    it('should revert when the oracle Signature is wrong', async () => {
-      const {
-        poolProxy,
-        impersonatedWhaleSigner,
-        initialDailyInterestRateInBps,
-        seaportSettlementManager,
-        loanToValueInBps,
-        collectionAddress,
-        oracleSigner,
-        borrower,
-      } = await buildTestContext();
+      it('should revert when trying to buy NFT with a duration of more than 90 days', async () => {
+        const {
+          poolProxy,
+          impersonatedWhaleSigner,
+          initialDailyInterestRateInBps,
+          seaportSettlementManager,
+          loanToValueInBps,
+          collectionAddress,
+          oracleSigner,
+          borrower,
+        } = await buildTestContext();
 
-      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
+        const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+          await buyNFTPreparationHelper();
 
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
 
-      // deposit into pool
-      const deposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: deposit,
-        });
+        // deposit into pool
+        const deposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: deposit,
+          });
 
-      const loanDurationInDays = 30;
-      const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+        const oracleSignature = await mockSignLoan(
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          BigNumber.from(nftPrice.toString()),
+          borrower.address,
+          0,
+          loanTimestamp,
+          orderExtraData,
+          oracleSigner,
+        );
 
-      // remaining to be paid
-      const remainingToBePaid = nftPrice - ltvValue;
+        const ninetyOneDaysInSeconds = 91 * 24 * 60 * 60;
 
-      const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
-
-      // calculate LoanPrice from NFT price
-      const [loanPrice] = await poolProxy.calculateLoanPrice(
-        remainingToBePaidInBN,
-        loanDurationInDays,
-      );
-
-      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
-
-      const oracleSignature = await mockSignLoan(
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        borrower.address,
-        0,
-        loanTimestamp + 1, // change loanTimestamp to make signature invalid
-        orderExtraData,
-        oracleSigner,
-      );
-
-      await expect(
-        poolProxy
-          .connect(borrower)
-          .buyNFT(
+        // try to buy NFT with a duration of less than a day
+        await expect(
+          buyNFTHelper(
+            poolProxy,
+            borrower,
             collectionAddress,
             tokenId,
             BigNumber.from(nftPrice.toString()),
-            BigNumber.from(priceWithInterest.toString()),
-            seaportSettlementManager.address,
-            loanTimestamp,
-            loanDurationInSeconds,
-            orderExtraData,
-            oracleSignature,
-            { value: BigNumber.from(ltvValue.toString()) },
-          ),
-      ).to.be.revertedWith('Pool: NFT loan not accepted');
-    });
-
-    it('should revert when the signer of the oracle is wrong', async () => {
-      const {
-        poolProxy,
-        impersonatedWhaleSigner,
-        initialDailyInterestRateInBps,
-        seaportSettlementManager,
-        loanToValueInBps,
-        collectionAddress,
-        randomUser,
-        borrower,
-      } = await buildTestContext();
-
-      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
-
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
-
-      // deposit into pool
-      const deposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: deposit,
-        });
-
-      const loanDurationInDays = 30;
-      const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
-
-      // remaining to be paid
-      const remainingToBePaid = nftPrice - ltvValue;
-
-      const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
-
-      // calculate LoanPrice from NFT price
-      const [loanPrice] = await poolProxy.calculateLoanPrice(
-        remainingToBePaidInBN,
-        loanDurationInDays,
-      );
-
-      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
-
-      const oracleSignature = await mockSignLoan(
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        borrower.address,
-        0,
-        loanTimestamp,
-        orderExtraData,
-        randomUser, // should not be able to sign
-      );
-
-      await expect(
-        poolProxy
-          .connect(borrower)
-          .buyNFT(
-            collectionAddress,
-            tokenId,
             BigNumber.from(nftPrice.toString()),
-            BigNumber.from(priceWithInterest.toString()),
-            seaportSettlementManager.address,
+            seaportSettlementManager,
             loanTimestamp,
-            loanDurationInSeconds,
+            ninetyOneDaysInSeconds,
             orderExtraData,
             oracleSignature,
-            { value: BigNumber.from(ltvValue.toString()) },
+            BigNumber.from(ltvValue.toString()),
           ),
-      ).to.be.revertedWith('Pool: NFT loan not accepted');
-    });
-  });
+        ).to.be.revertedWith('Pool: loan duration too long');
+      });
 
-  describe('Deposit', async () => {
-    it('should be able to deposit into pool', async () => {
-      const { initialDailyInterestRateInBps, poolProxy, impersonatedWhaleSigner } =
-        await buildTestContext();
+      it('should revert when trying to buy NFT with too low LTV', async () => {
+        const {
+          poolProxy,
+          impersonatedWhaleSigner,
+          initialDailyInterestRateInBps,
+          seaportSettlementManager,
+          loanToValueInBps,
+          collectionAddress,
+          oracleSigner,
+          borrower,
+        } = await buildTestContext();
 
-      const poolProxyBalanceBefore = await ethers.provider.getBalance(poolProxy.address);
+        const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+          await buyNFTPreparationHelper();
 
-      const secondDeposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: secondDeposit,
-        });
+        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
 
-      const poolProxyBalanceAfter = await ethers.provider.getBalance(poolProxy.address);
+        // deposit into pool
+        const deposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: deposit,
+          });
 
-      expect(poolProxyBalanceAfter).to.equal(poolProxyBalanceBefore.add(secondDeposit));
-    });
-  });
+        const loanDurationInDays = 30;
+        const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
-  describe('liquidation', async () => {
-    it('should revert when trying to liquidate a non-existent loan', async () => {
-      const { poolProxy, borrower } = await buildTestContext();
+        // remaining to be paid
+        const remainingToBePaid = nftPrice - ltvValue;
 
-      // Try to liquidate a loan with a non-existent tokenId or borrower
-      await expect(
-        poolProxy.connect(borrower).liquidateLoan(9999, borrower.address),
-      ).to.be.revertedWith('Pool: loan does not exist');
-    });
+        const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
-    it('should revert when trying to liquidate a loan already in liquidation', async () => {
-      const {
-        poolProxy,
-        impersonatedWhaleSigner,
-        initialDailyInterestRateInBps,
-        seaportSettlementManager,
-        loanToValueInBps,
-        collectionAddress,
-        oracleSigner,
-        borrower,
-        tokenContract,
-        dutchAuctionLiquidatorFactory,
-        randomUser,
-      } = await buildTestContext();
+        // calculate LoanPrice from NFT price
+        const [loanPrice] = await poolProxy.calculateLoanPrice(
+          remainingToBePaidInBN,
+          loanDurationInDays,
+        );
 
-      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
+        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
 
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const oracleSignature = await mockSignLoan(
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          borrower.address,
+          0,
+          loanTimestamp,
+          orderExtraData,
+          oracleSigner,
+        );
 
-      // deposit into pool
-      const deposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: deposit,
-        });
+        await expect(
+          poolProxy
+            .connect(borrower)
+            .buyNFT(
+              collectionAddress,
+              tokenId,
+              BigNumber.from(nftPrice.toString()),
+              BigNumber.from(priceWithInterest.toString()),
+              seaportSettlementManager.address,
+              loanTimestamp,
+              loanDurationInSeconds,
+              orderExtraData,
+              oracleSignature,
+              { value: BigNumber.from(ltvValue.toString()).sub(1) },
+            ),
+        ).to.be.revertedWith('Pool: LTV not respected');
+      });
 
-      const loanDurationInDays = 90;
-      const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+      it('should revert when the oracle Signature is wrong', async () => {
+        const {
+          poolProxy,
+          impersonatedWhaleSigner,
+          initialDailyInterestRateInBps,
+          seaportSettlementManager,
+          loanToValueInBps,
+          collectionAddress,
+          oracleSigner,
+          borrower,
+        } = await buildTestContext();
 
-      // remaining to be paid
-      const remainingToBePaid = nftPrice - ltvValue;
+        const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+          await buyNFTPreparationHelper();
 
-      const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
 
-      // calculate LoanPrice from NFT price
-      const [loanPrice] = await poolProxy.calculateLoanPrice(
-        remainingToBePaidInBN,
-        loanDurationInDays,
-      );
+        // deposit into pool
+        const deposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: deposit,
+          });
 
-      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const loanDurationInDays = 30;
+        const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
-      const oracleSignature = await mockSignLoan(
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        borrower.address,
-        0,
-        loanTimestamp,
-        orderExtraData,
-        oracleSigner,
-      );
+        // remaining to be paid
+        const remainingToBePaid = nftPrice - ltvValue;
 
-      // buy NFT
-      await buyNFTHelper(
-        poolProxy,
-        borrower,
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        seaportSettlementManager,
-        loanTimestamp,
-        loanDurationInSeconds,
-        orderExtraData,
-        oracleSignature,
-        BigNumber.from(ltvValue.toString()),
-      );
+        const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
-      const thirthyDaysInSeconds = 30 * 24 * 60 * 60;
+        // calculate LoanPrice from NFT price
+        const [loanPrice] = await poolProxy.calculateLoanPrice(
+          remainingToBePaidInBN,
+          loanDurationInDays,
+        );
 
-      // advance blockchain to loan end
-      await ethers.provider.send('evm_increaseTime', [thirthyDaysInSeconds + 1]);
+        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
 
-      // liquidate NFT
-      await poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address);
+        const oracleSignature = await mockSignLoan(
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          borrower.address,
+          0,
+          loanTimestamp + 1, // change loanTimestamp to make signature invalid
+          orderExtraData,
+          oracleSigner,
+        );
 
-      expect(await tokenContract.ownerOf(tokenId)).to.be.equal(
-        dutchAuctionLiquidatorFactory.address,
-      );
+        await expect(
+          poolProxy
+            .connect(borrower)
+            .buyNFT(
+              collectionAddress,
+              tokenId,
+              BigNumber.from(nftPrice.toString()),
+              BigNumber.from(priceWithInterest.toString()),
+              seaportSettlementManager.address,
+              loanTimestamp,
+              loanDurationInSeconds,
+              orderExtraData,
+              oracleSignature,
+              { value: BigNumber.from(ltvValue.toString()) },
+            ),
+        ).to.be.revertedWith('Pool: NFT loan not accepted');
+      });
 
-      // Try to liquidate again
-      await expect(
-        poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address),
-      ).to.be.revertedWith('Pool: loan is closed');
-    });
+      it('should revert when the signer of the oracle is wrong', async () => {
+        const {
+          poolProxy,
+          impersonatedWhaleSigner,
+          initialDailyInterestRateInBps,
+          seaportSettlementManager,
+          loanToValueInBps,
+          collectionAddress,
+          randomUser,
+          borrower,
+        } = await buildTestContext();
 
-    it('should not be able to liquidate NFT if loan paiment is not late', async () => {
-      const {
-        poolProxy,
-        impersonatedWhaleSigner,
-        initialDailyInterestRateInBps,
-        seaportSettlementManager,
-        loanToValueInBps,
-        collectionAddress,
-        oracleSigner,
-        randomUser,
-        borrower,
-      } = await buildTestContext();
+        const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+          await buyNFTPreparationHelper();
 
-      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
+        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
 
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        // deposit into pool
+        const deposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: deposit,
+          });
 
-      // deposit into pool
-      const deposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: deposit,
-        });
+        const loanDurationInDays = 30;
+        const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
-      const loanDurationInDays = 30;
-      const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+        // remaining to be paid
+        const remainingToBePaid = nftPrice - ltvValue;
 
-      // remaining to be paid
-      const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
-      const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+        // calculate LoanPrice from NFT price
+        const [loanPrice] = await poolProxy.calculateLoanPrice(
+          remainingToBePaidInBN,
+          loanDurationInDays,
+        );
 
-      // calculate LoanPrice from NFT price
-      const [loanPrice] = await poolProxy.calculateLoanPrice(
-        remainingToBePaidInBN,
-        loanDurationInDays,
-      );
+        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
 
-      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const oracleSignature = await mockSignLoan(
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          borrower.address,
+          0,
+          loanTimestamp,
+          orderExtraData,
+          randomUser, // should not be able to sign
+        );
 
-      const oracleSignature = await mockSignLoan(
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        borrower.address,
-        0,
-        loanTimestamp,
-        orderExtraData,
-        oracleSigner,
-      );
-
-      // buy NFT
-      await buyNFTHelper(
-        poolProxy,
-        borrower,
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        seaportSettlementManager,
-        loanTimestamp,
-        loanDurationInSeconds,
-        orderExtraData,
-        oracleSignature,
-        BigNumber.from(ltvValue.toString()),
-      );
-
-      const thirthyDaysInSeconds = 20 * 24 * 60 * 60;
-
-      // advance blockchain to less than next paiement which is 30 days
-      await ethers.provider.send('evm_increaseTime', [thirthyDaysInSeconds - 1]);
-
-      // try liquidating NFT
-      await expect(
-        poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address),
-      ).to.be.revertedWith('Pool: loan paiement not late');
-    });
-
-    it('should revert when trying to liquidate a loan that is already paid back', async () => {
-      const {
-        poolProxy,
-        impersonatedWhaleSigner,
-        initialDailyInterestRateInBps,
-        seaportSettlementManager,
-        loanToValueInBps,
-        collectionAddress,
-        oracleSigner,
-        borrower,
-        tokenContract,
-        dutchAuctionLiquidatorFactory,
-        randomUser,
-      } = await buildTestContext();
-
-      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
-
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
-
-      // deposit into pool
-      const deposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: deposit,
-        });
-
-      const loanDurationInDays = 30;
-      const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
-
-      // remaining to be paid
-      const remainingToBePaid = nftPrice - ltvValue;
-
-      const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
-
-      // calculate LoanPrice from NFT price
-      const [loanPrice] = await poolProxy.calculateLoanPrice(
-        remainingToBePaidInBN,
-        loanDurationInDays,
-      );
-
-      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
-
-      const oracleSignature = await mockSignLoan(
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        borrower.address,
-        0,
-        loanTimestamp,
-        orderExtraData,
-        oracleSigner,
-      );
-
-      // buy NFT
-      await buyNFTHelper(
-        poolProxy,
-        borrower,
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        seaportSettlementManager,
-        loanTimestamp,
-        loanDurationInSeconds,
-        orderExtraData,
-        oracleSignature,
-        BigNumber.from(ltvValue.toString()),
-      );
-
-      // repay loan
-      await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, { value: loanPrice });
-
-      // advance blockchain to loan end
-      await ethers.provider.send('evm_increaseTime', [loanDurationInSeconds + 1]);
-
-      // liquidate NFT
-      await expect(
-        poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address),
-      ).to.be.revertedWith('Pool: loan is closed');
-
-      // new owner should be borrower
-      expect(await tokenContract.ownerOf(tokenId)).to.be.equal(borrower.address);
+        await expect(
+          poolProxy
+            .connect(borrower)
+            .buyNFT(
+              collectionAddress,
+              tokenId,
+              BigNumber.from(nftPrice.toString()),
+              BigNumber.from(priceWithInterest.toString()),
+              seaportSettlementManager.address,
+              loanTimestamp,
+              loanDurationInSeconds,
+              orderExtraData,
+              oracleSignature,
+              { value: BigNumber.from(ltvValue.toString()) },
+            ),
+        ).to.be.revertedWith('Pool: NFT loan not accepted');
+      });
     });
 
-    it('should be able to liquidate NFT if loan is not paid before end of next paiement (30 days)', async () => {
-      const {
-        poolProxy,
-        impersonatedWhaleSigner,
-        initialDailyInterestRateInBps,
-        seaportSettlementManager,
-        loanToValueInBps,
-        collectionAddress,
-        oracleSigner,
-        borrower,
-        tokenContract,
-        dutchAuctionLiquidatorFactory,
-        randomUser,
-      } = await buildTestContext();
+    describe('Deposit', async () => {
+      it('should be able to deposit into pool', async () => {
+        const { initialDailyInterestRateInBps, poolProxy, impersonatedWhaleSigner } =
+          await buildTestContext();
 
-      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
+        const poolProxyBalanceBefore = await ethers.provider.getBalance(poolProxy.address);
 
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const secondDeposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: secondDeposit,
+          });
 
-      // deposit into pool
-      const deposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: deposit,
-        });
+        const poolProxyBalanceAfter = await ethers.provider.getBalance(poolProxy.address);
 
-      const loanDurationInDays = 90;
-      const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
-
-      // remaining to be paid
-      const remainingToBePaid = nftPrice - ltvValue;
-
-      const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
-
-      // calculate LoanPrice from NFT price
-      const [loanPrice] = await poolProxy.calculateLoanPrice(
-        remainingToBePaidInBN,
-        loanDurationInDays,
-      );
-
-      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
-
-      const oracleSignature = await mockSignLoan(
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        borrower.address,
-        0,
-        loanTimestamp,
-        orderExtraData,
-        oracleSigner,
-      );
-
-      // buy NFT
-      await buyNFTHelper(
-        poolProxy,
-        borrower,
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        seaportSettlementManager,
-        loanTimestamp,
-        loanDurationInSeconds,
-        orderExtraData,
-        oracleSignature,
-        BigNumber.from(ltvValue.toString()),
-      );
-
-      const thirthyDaysInSeconds = 30 * 24 * 60 * 60;
-
-      // advance blockchain to loan end
-      await ethers.provider.send('evm_increaseTime', [thirthyDaysInSeconds + 1]);
-
-      // liquidate NFT
-      await poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address);
-
-      expect(await tokenContract.ownerOf(tokenId)).to.be.equal(
-        dutchAuctionLiquidatorFactory.address,
-      );
+        expect(poolProxyBalanceAfter).to.equal(poolProxyBalanceBefore.add(secondDeposit));
+      });
     });
 
-    it('should be able to liquidate NFT if loan is not paid before end of loan', async () => {
-      const {
-        poolProxy,
-        impersonatedWhaleSigner,
-        initialDailyInterestRateInBps,
-        seaportSettlementManager,
-        loanToValueInBps,
-        collectionAddress,
-        oracleSigner,
-        borrower,
-        tokenContract,
-        dutchAuctionLiquidatorFactory,
-        randomUser,
-      } = await buildTestContext();
+    describe('Liquidation', async () => {
+      it('should revert when trying to liquidate a non-existent loan', async () => {
+        const { poolProxy, borrower } = await buildTestContext();
 
-      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
+        // Try to liquidate a loan with a non-existent tokenId or borrower
+        await expect(
+          poolProxy.connect(borrower).liquidateLoan(9999, borrower.address),
+        ).to.be.revertedWith('Pool: loan does not exist');
+      });
 
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+      it('should revert when trying to liquidate a loan already in liquidation', async () => {
+        const {
+          poolProxy,
+          impersonatedWhaleSigner,
+          initialDailyInterestRateInBps,
+          seaportSettlementManager,
+          loanToValueInBps,
+          collectionAddress,
+          oracleSigner,
+          borrower,
+          tokenContract,
+          dutchAuctionLiquidatorFactory,
+          randomUser,
+        } = await buildTestContext();
 
-      // deposit into pool
-      const deposit = ethers.utils.parseEther('100');
-      await poolProxy
-        .connect(impersonatedWhaleSigner)
-        .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
-          value: deposit,
-        });
+        const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+          await buyNFTPreparationHelper();
 
-      const loanDurationInDays = 30;
-      const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
 
-      // remaining to be paid
-      const remainingToBePaid = nftPrice - ltvValue;
+        // deposit into pool
+        const deposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: deposit,
+          });
 
-      const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+        const loanDurationInDays = 90;
+        const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
-      // calculate LoanPrice from NFT price
-      const [loanPrice] = await poolProxy.calculateLoanPrice(
-        remainingToBePaidInBN,
-        loanDurationInDays,
-      );
+        // remaining to be paid
+        const remainingToBePaid = nftPrice - ltvValue;
 
-      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
-      const oracleSignature = await mockSignLoan(
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        borrower.address,
-        0,
-        loanTimestamp,
-        orderExtraData,
-        oracleSigner,
-      );
+        // calculate LoanPrice from NFT price
+        const [loanPrice] = await poolProxy.calculateLoanPrice(
+          remainingToBePaidInBN,
+          loanDurationInDays,
+        );
 
-      // buy NFT
-      await buyNFTHelper(
-        poolProxy,
-        borrower,
-        collectionAddress,
-        tokenId,
-        BigNumber.from(nftPrice.toString()),
-        priceWithInterest,
-        seaportSettlementManager,
-        loanTimestamp,
-        loanDurationInSeconds,
-        orderExtraData,
-        oracleSignature,
-        BigNumber.from(ltvValue.toString()),
-      );
+        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
 
-      // advance blockchain to loan end
-      await ethers.provider.send('evm_increaseTime', [loanDurationInSeconds + 1]);
+        const oracleSignature = await mockSignLoan(
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          borrower.address,
+          0,
+          loanTimestamp,
+          orderExtraData,
+          oracleSigner,
+        );
 
-      // liquidate NFT
-      await poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address);
+        // buy NFT
+        await buyNFTHelper(
+          poolProxy,
+          borrower,
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          seaportSettlementManager,
+          loanTimestamp,
+          loanDurationInSeconds,
+          orderExtraData,
+          oracleSignature,
+          BigNumber.from(ltvValue.toString()),
+        );
 
-      expect(await tokenContract.ownerOf(tokenId)).to.be.equal(
-        dutchAuctionLiquidatorFactory.address,
-      );
+        const thirthyDaysInSeconds = 30 * 24 * 60 * 60;
+
+        // advance blockchain to loan end
+        await ethers.provider.send('evm_increaseTime', [thirthyDaysInSeconds + 1]);
+        await ethers.provider.send('evm_mine', []);
+
+        // liquidate NFT
+        await poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address);
+
+        expect(await tokenContract.ownerOf(tokenId)).to.be.equal(
+          dutchAuctionLiquidatorFactory.address,
+        );
+
+        // Try to liquidate again
+        await expect(
+          poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address),
+        ).to.be.revertedWith('Pool: loan is closed');
+      });
+
+      it('should not be able to liquidate NFT if loan paiment is not late', async () => {
+        const {
+          poolProxy,
+          impersonatedWhaleSigner,
+          initialDailyInterestRateInBps,
+          seaportSettlementManager,
+          loanToValueInBps,
+          collectionAddress,
+          oracleSigner,
+          randomUser,
+          borrower,
+        } = await buildTestContext();
+
+        const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+          await buyNFTPreparationHelper();
+
+        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+
+        // deposit into pool
+        const deposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: deposit,
+          });
+
+        const loanDurationInDays = 30;
+        const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+
+        // remaining to be paid
+        const remainingToBePaid = nftPrice - ltvValue;
+
+        const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+
+        // calculate LoanPrice from NFT price
+        const [loanPrice] = await poolProxy.calculateLoanPrice(
+          remainingToBePaidInBN,
+          loanDurationInDays,
+        );
+
+        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+
+        const oracleSignature = await mockSignLoan(
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          borrower.address,
+          0,
+          loanTimestamp,
+          orderExtraData,
+          oracleSigner,
+        );
+
+        // buy NFT
+        await buyNFTHelper(
+          poolProxy,
+          borrower,
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          seaportSettlementManager,
+          loanTimestamp,
+          loanDurationInSeconds,
+          orderExtraData,
+          oracleSignature,
+          BigNumber.from(ltvValue.toString()),
+        );
+
+        const thirthyDaysInSeconds = 20 * 24 * 60 * 60;
+
+        // advance blockchain to less than next paiement which is 30 days
+        await ethers.provider.send('evm_increaseTime', [thirthyDaysInSeconds - 1]);
+        await ethers.provider.send('evm_mine', []);
+
+        // try liquidating NFT
+        await expect(
+          poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address),
+        ).to.be.revertedWith('Pool: loan paiement not late');
+      });
+
+      it('should revert when trying to liquidate a loan that is already paid back', async () => {
+        const {
+          poolProxy,
+          impersonatedWhaleSigner,
+          initialDailyInterestRateInBps,
+          seaportSettlementManager,
+          loanToValueInBps,
+          collectionAddress,
+          oracleSigner,
+          borrower,
+          tokenContract,
+          dutchAuctionLiquidatorFactory,
+          randomUser,
+        } = await buildTestContext();
+
+        const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+          await buyNFTPreparationHelper();
+
+        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+
+        // deposit into pool
+        const deposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: deposit,
+          });
+
+        const loanDurationInDays = 30;
+        const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+
+        // remaining to be paid
+        const remainingToBePaid = nftPrice - ltvValue;
+
+        const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+
+        // calculate LoanPrice from NFT price
+        const [loanPrice] = await poolProxy.calculateLoanPrice(
+          remainingToBePaidInBN,
+          loanDurationInDays,
+        );
+
+        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+
+        const oracleSignature = await mockSignLoan(
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          borrower.address,
+          0,
+          loanTimestamp,
+          orderExtraData,
+          oracleSigner,
+        );
+
+        // buy NFT
+        await buyNFTHelper(
+          poolProxy,
+          borrower,
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          seaportSettlementManager,
+          loanTimestamp,
+          loanDurationInSeconds,
+          orderExtraData,
+          oracleSignature,
+          BigNumber.from(ltvValue.toString()),
+        );
+
+        // repay loan
+        await poolProxy
+          .connect(borrower)
+          .refundLoan(tokenId, borrower.address, { value: loanPrice });
+
+        // advance blockchain to loan end
+        await ethers.provider.send('evm_increaseTime', [loanDurationInSeconds + 1]);
+        await ethers.provider.send('evm_mine', []);
+
+        // liquidate NFT
+        await expect(
+          poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address),
+        ).to.be.revertedWith('Pool: loan is closed');
+
+        // new owner should be borrower
+        expect(await tokenContract.ownerOf(tokenId)).to.be.equal(borrower.address);
+      });
+
+      it('should be able to liquidate NFT if loan is not paid before end of next paiement (30 days)', async () => {
+        const {
+          poolProxy,
+          impersonatedWhaleSigner,
+          initialDailyInterestRateInBps,
+          seaportSettlementManager,
+          loanToValueInBps,
+          collectionAddress,
+          oracleSigner,
+          borrower,
+          tokenContract,
+          dutchAuctionLiquidatorFactory,
+          randomUser,
+        } = await buildTestContext();
+
+        const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+          await buyNFTPreparationHelper();
+
+        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+
+        // deposit into pool
+        const deposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: deposit,
+          });
+
+        const loanDurationInDays = 90;
+        const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+
+        // remaining to be paid
+        const remainingToBePaid = nftPrice - ltvValue;
+
+        const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+
+        // calculate LoanPrice from NFT price
+        const [loanPrice] = await poolProxy.calculateLoanPrice(
+          remainingToBePaidInBN,
+          loanDurationInDays,
+        );
+
+        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+
+        const oracleSignature = await mockSignLoan(
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          borrower.address,
+          0,
+          loanTimestamp,
+          orderExtraData,
+          oracleSigner,
+        );
+
+        // buy NFT
+        await buyNFTHelper(
+          poolProxy,
+          borrower,
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          seaportSettlementManager,
+          loanTimestamp,
+          loanDurationInSeconds,
+          orderExtraData,
+          oracleSignature,
+          BigNumber.from(ltvValue.toString()),
+        );
+
+        const thirthyDaysInSeconds = 30 * 24 * 60 * 60;
+
+        // advance blockchain to loan end
+        await ethers.provider.send('evm_increaseTime', [thirthyDaysInSeconds + 1]);
+        await ethers.provider.send('evm_mine', []);
+
+        // liquidate NFT
+        await poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address);
+
+        expect(await tokenContract.ownerOf(tokenId)).to.be.equal(
+          dutchAuctionLiquidatorFactory.address,
+        );
+      });
+
+      it('should be able to liquidate NFT if loan is not paid before end of loan', async () => {
+        const {
+          poolProxy,
+          impersonatedWhaleSigner,
+          initialDailyInterestRateInBps,
+          seaportSettlementManager,
+          loanToValueInBps,
+          collectionAddress,
+          oracleSigner,
+          borrower,
+          tokenContract,
+          dutchAuctionLiquidatorFactory,
+          randomUser,
+        } = await buildTestContext();
+
+        const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+          await buyNFTPreparationHelper();
+
+        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+
+        // deposit into pool
+        const deposit = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(impersonatedWhaleSigner)
+          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            value: deposit,
+          });
+
+        const loanDurationInDays = 30;
+        const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+
+        // remaining to be paid
+        const remainingToBePaid = nftPrice - ltvValue;
+
+        const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+
+        // calculate LoanPrice from NFT price
+        const [loanPrice] = await poolProxy.calculateLoanPrice(
+          remainingToBePaidInBN,
+          loanDurationInDays,
+        );
+
+        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+
+        const oracleSignature = await mockSignLoan(
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          borrower.address,
+          0,
+          loanTimestamp,
+          orderExtraData,
+          oracleSigner,
+        );
+
+        // buy NFT
+        await buyNFTHelper(
+          poolProxy,
+          borrower,
+          collectionAddress,
+          tokenId,
+          BigNumber.from(nftPrice.toString()),
+          priceWithInterest,
+          seaportSettlementManager,
+          loanTimestamp,
+          loanDurationInSeconds,
+          orderExtraData,
+          oracleSignature,
+          BigNumber.from(ltvValue.toString()),
+        );
+
+        // advance blockchain to loan end
+        await ethers.provider.send('evm_increaseTime', [loanDurationInSeconds + 1]);
+        await ethers.provider.send('evm_mine', []);
+
+        // liquidate NFT
+        await poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address);
+
+        expect(await tokenContract.ownerOf(tokenId)).to.be.equal(
+          dutchAuctionLiquidatorFactory.address,
+        );
+      });
     });
-
-    describe('refund loan', async () => {
+    describe('Refund loan', async () => {
       it('should be able to refund loan', async () => {
         const {
           poolProxy,
@@ -1068,6 +1097,7 @@ describe('Pool', async () => {
 
         // advance blockchain 29 days
         await ethers.provider.send('evm_increaseTime', [29 * 24 * 60 * 60]);
+        await ethers.provider.send('evm_mine', []);
 
         // refund loan of loanPrice / 3 (1/3 of loan price)
         await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
@@ -1076,6 +1106,7 @@ describe('Pool', async () => {
 
         // advance blockchain 29 days
         await ethers.provider.send('evm_increaseTime', [29 * 24 * 60 * 60]);
+        await ethers.provider.send('evm_mine', []);
 
         // refund loan of loanPrice / 3 (1/3 of loan price)
         await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
@@ -1084,6 +1115,7 @@ describe('Pool', async () => {
 
         // advance blockchain 29 days
         await ethers.provider.send('evm_increaseTime', [29 * 24 * 60 * 60]);
+        await ethers.provider.send('evm_mine', []);
 
         // refund loan of loanPrice / 3 (1/3 of loan price)
         await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
@@ -1092,7 +1124,7 @@ describe('Pool', async () => {
 
         // verify that loan is paid back
         const loan = await poolProxy.retrieveLoan(tokenId, borrower.address);
-        expect(loan.amountOwed).to.be.equal(0);
+        expect(loan.amountOwedWithInterest).to.be.equal(0);
 
         // verify that loan is closed
         expect(loan.isClosed).to.be.true;
@@ -1361,9 +1393,6 @@ describe('Pool', async () => {
           collectionAddress,
           oracleSigner,
           borrower,
-          tokenContract,
-          dutchAuctionLiquidatorFactory,
-          randomUser,
         } = await buildTestContext();
 
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
@@ -1425,12 +1454,671 @@ describe('Pool', async () => {
 
         // advance blockchain to loan end
         await ethers.provider.send('evm_increaseTime', [loanDurationInSeconds]);
+        await ethers.provider.send('evm_mine', []);
 
         await expect(
           poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
             value: loanPrice, // adding 1 wei to the refund and expecting a revert,
           }),
         ).to.be.revertedWith('Pool: loan expired');
+      });
+    });
+  });
+  describe('Lender', async () => {
+    describe('When Depositing Native Tokens', async () => {
+      it('should mint shares', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+
+        const lender1SharesBefore = await poolProxy.balanceOf(lender1.address);
+        expect(lender1SharesBefore).to.be.equal(0);
+
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: ethers.utils.parseEther('100'),
+          });
+
+        const lender1SharesAfter = await poolProxy.balanceOf(lender1.address);
+        expect(lender1SharesAfter).to.not.be.equal(0);
+      });
+
+      it('should be able to withdraw (after vesting time)', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: depositAmount,
+          });
+
+        const twelveHoursInSeconds = 12 * 60 * 60;
+        const vestingTime = twelveHoursInSeconds * initialDailyInterestRateInBps;
+
+        // advance blockchain to vesting time
+        await ethers.provider.send('evm_increaseTime', [vestingTime]);
+        await ethers.provider.send('evm_mine', []);
+
+        const lender1BalanceBeforeWithdraw = await ethers.provider.getBalance(lender1.address);
+
+        const lender1Shares = await poolProxy.balanceOf(lender1.address);
+
+        await poolProxy.connect(lender1).redeem(lender1Shares, lender1.address, lender1.address);
+
+        const lender1SharesAfter = await poolProxy.balanceOf(lender1.address);
+        expect(lender1SharesAfter).to.be.equal(0);
+
+        const lender1BalanceAfterWithdraw = await ethers.provider.getBalance(lender1.address);
+        expect(lender1BalanceAfterWithdraw).to.be.greaterThan(lender1BalanceBeforeWithdraw);
+      });
+
+      it('vesting time should increase when depositing with a higher interest rate', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: depositAmount,
+          });
+
+        const vestingTimeBefore = await poolProxy.vestingTimePerLender(lender1.address);
+
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps + 1, {
+            value: depositAmount,
+          });
+
+        const vestingTimeAfter = await poolProxy.vestingTimePerLender(lender1.address);
+
+        expect(vestingTimeAfter).to.be.greaterThan(vestingTimeBefore);
+      });
+
+      it('vesting time should not decrease when depositing with a lower interest rate', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: depositAmount,
+          });
+
+        const vestingTimeBefore = await poolProxy.vestingTimePerLender(lender1.address);
+
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps - 1, {
+            value: depositAmount,
+          });
+
+        const vestingTimeAfter = await poolProxy.vestingTimePerLender(lender1.address);
+
+        expect(vestingTimeAfter).to.be.equal(vestingTimeBefore);
+      });
+
+      // this test is a bit weird as it will not be always the case (some refund or liquidation could happen before depositing)
+      it('should return number of shares returned by previewDeposit', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
+
+        const lender1SharesBefore = await poolProxy.balanceOf(lender1.address);
+
+        const lender1SharesPreview = await poolProxy.previewDeposit(depositAmount);
+
+        expect(lender1SharesPreview).to.not.be.equal(0);
+
+        const tx = await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: depositAmount,
+          });
+
+        const receipt = await tx.wait();
+
+        const lender1SharesAfter = await poolProxy.balanceOf(lender1.address);
+
+        expect(lender1SharesPreview).to.be.equal(lender1SharesAfter.sub(lender1SharesBefore));
+      });
+
+      it('should revert if interest daily rate is too high', async () => {
+        const { poolProxy, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
+
+        const maxInterestRate = await poolProxy.MAX_INTEREST_RATE();
+
+        await expect(
+          poolProxy.connect(lender1).depositNativeTokens(lender1.address, maxInterestRate.add(1), {
+            value: depositAmount,
+          }),
+        ).to.be.revertedWith('Pool: daily interest rate too high');
+      });
+
+      it('should revert if trying to withdraw before vesting time', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
+        await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: depositAmount,
+          });
+
+        const twelveHoursInSeconds = 12 * 60 * 60;
+        const vestingTime = twelveHoursInSeconds * initialDailyInterestRateInBps;
+
+        // advance blockchain to vesting time - 1
+        await ethers.provider.send('evm_increaseTime', [vestingTime - 100]);
+        await ethers.provider.send('evm_mine', []);
+
+        const lender1Shares = await poolProxy.balanceOf(lender1.address);
+
+        await expect(
+          poolProxy.connect(lender1).redeem(lender1Shares, lender1.address, lender1.address),
+        ).to.be.revertedWith('Pool: vesting time not respected');
+      });
+
+      describe('when two lenders deposit', async () => {
+        it('lender1 vesting time should not be impacted by lender2 deposit', async () => {
+          const { poolProxy, initialDailyInterestRateInBps, lender1, lender2 } =
+            await buildTestContext();
+
+          const depositAmount = ethers.utils.parseEther('100');
+          await poolProxy
+            .connect(lender1)
+            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+              value: depositAmount,
+            });
+
+          const vestingTimeLender1Before = await poolProxy.vestingTimePerLender(lender1.address);
+
+          await poolProxy
+            .connect(lender2)
+            .depositNativeTokens(lender2.address, initialDailyInterestRateInBps * 2, {
+              value: depositAmount,
+            });
+
+          const vestingTimeLender1After = await poolProxy.vestingTimePerLender(lender1.address);
+
+          expect(vestingTimeLender1After).to.be.equal(vestingTimeLender1Before);
+        });
+
+        it('when lender2 deposit with a lower interest rate, dailyInterestRate should decrease', async () => {
+          const { poolProxy, initialDailyInterestRateInBps, lender1, lender2 } =
+            await buildTestContext();
+
+          const depositAmount = ethers.utils.parseEther('100');
+
+          await poolProxy
+            .connect(lender1)
+            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+              value: depositAmount,
+            });
+
+          const dailyInterestRateBefore = await poolProxy.dailyInterestRate();
+
+          await poolProxy
+            .connect(lender2)
+            .depositNativeTokens(lender2.address, initialDailyInterestRateInBps * 0.5, {
+              value: depositAmount,
+            });
+
+          const dailyInterestRateAfter = await poolProxy.dailyInterestRate();
+
+          expect(dailyInterestRateAfter).to.be.lessThan(dailyInterestRateBefore);
+        });
+
+        it('when lender2 deposit with a higher interest rate, dailyInterestRate should increase', async () => {
+          const { poolProxy, initialDailyInterestRateInBps, lender1, lender2 } =
+            await buildTestContext();
+
+          const depositAmount = ethers.utils.parseEther('100');
+
+          await poolProxy
+            .connect(lender1)
+            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+              value: depositAmount,
+            });
+
+          const dailyInterestRateBefore = await poolProxy.dailyInterestRate();
+
+          await poolProxy
+            .connect(lender2)
+            .depositNativeTokens(lender2.address, initialDailyInterestRateInBps * 2, {
+              value: depositAmount,
+            });
+
+          const dailyInterestRateAfter = await poolProxy.dailyInterestRate();
+
+          expect(dailyInterestRateAfter).to.be.greaterThan(dailyInterestRateBefore);
+        });
+      });
+      describe('when loans are emitted', async () => {
+        it('should increase lp tokens price when loan is paid back', async () => {
+          const {
+            poolProxy,
+            impersonatedWhaleSigner,
+            initialDailyInterestRateInBps,
+            seaportSettlementManager,
+            loanToValueInBps,
+            collectionAddress,
+            oracleSigner,
+            borrower,
+            lender1,
+          } = await buildTestContext();
+
+          const depositAmount = ethers.utils.parseEther('100');
+          await poolProxy
+            .connect(lender1)
+            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+              value: depositAmount,
+            });
+
+          const balanceOfLpTokens = await poolProxy.balanceOf(lender1.address);
+
+          const redeemValueBefore = await poolProxy.previewRedeem(balanceOfLpTokens);
+
+          // generate loan and repay it
+          const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+            await buyNFTPreparationHelper();
+
+          const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+
+          // deposit into pool
+          const deposit = ethers.utils.parseEther('100');
+          await poolProxy
+            .connect(impersonatedWhaleSigner)
+            .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+              value: deposit,
+            });
+
+          const loanDurationInDays = 30;
+          const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+
+          // remaining to be paid
+          const remainingToBePaid = nftPrice - ltvValue;
+
+          const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+
+          // calculate LoanPrice from NFT price
+          const [loanPrice] = await poolProxy.calculateLoanPrice(
+            remainingToBePaidInBN,
+            loanDurationInDays,
+          );
+
+          const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+
+          const oracleSignature = await mockSignLoan(
+            collectionAddress,
+            tokenId,
+            BigNumber.from(nftPrice.toString()),
+            priceWithInterest,
+            borrower.address,
+            0,
+            loanTimestamp,
+            orderExtraData,
+            oracleSigner,
+          );
+
+          // buy NFT
+          await buyNFTHelper(
+            poolProxy,
+            borrower,
+            collectionAddress,
+            tokenId,
+            BigNumber.from(nftPrice.toString()),
+            priceWithInterest,
+            seaportSettlementManager,
+            loanTimestamp,
+            loanDurationInSeconds,
+            orderExtraData,
+            oracleSignature,
+            BigNumber.from(ltvValue.toString()),
+          );
+
+          // advance blockchain 29 days
+          await ethers.provider.send('evm_increaseTime', [29 * 24 * 60 * 60]);
+          await ethers.provider.send('evm_mine', []);
+
+          // refund loan of loanPrice / 3 (1/3 of loan price)
+          await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
+            value: loanPrice,
+          });
+
+          // verify that loan is paid back
+          const loan = await poolProxy.retrieveLoan(tokenId, borrower.address);
+          expect(loan.amountOwedWithInterest).to.be.equal(0);
+
+          const redeemValueAfter = await poolProxy.previewRedeem(balanceOfLpTokens);
+
+          expect(redeemValueAfter).to.be.greaterThan(redeemValueBefore);
+        });
+
+        // if loan is not paid back, lp tokens price should decrease
+        it('should decrease lp tokens price when loan is not paid back', async () => {
+          const {
+            poolProxy,
+            impersonatedWhaleSigner,
+            initialDailyInterestRateInBps,
+            seaportSettlementManager,
+            loanToValueInBps,
+            collectionAddress,
+            oracleSigner,
+            borrower,
+            lender1,
+            dutchAuctionLiquidatorFactory,
+          } = await buildTestContext();
+
+          const depositAmount = ethers.utils.parseEther('100');
+          await poolProxy
+            .connect(lender1)
+            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+              value: depositAmount,
+            });
+
+          const balanceOfLpTokens = await poolProxy.balanceOf(lender1.address);
+
+          const redeemValueBefore = await poolProxy.previewRedeem(balanceOfLpTokens);
+
+          // generate loan and repay it
+          const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+            await buyNFTPreparationHelper();
+
+          const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+
+          // deposit into pool
+          const deposit = ethers.utils.parseEther('100');
+          await poolProxy
+            .connect(impersonatedWhaleSigner)
+            .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+              value: deposit,
+            });
+
+          const loanDurationInDays = 30;
+          const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+
+          // remaining to be paid
+          const remainingToBePaid = nftPrice - ltvValue;
+
+          const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+
+          // calculate LoanPrice from NFT price
+          const [loanPrice] = await poolProxy.calculateLoanPrice(
+            remainingToBePaidInBN,
+            loanDurationInDays,
+          );
+
+          const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+
+          const oracleSignature = await mockSignLoan(
+            collectionAddress,
+            tokenId,
+            BigNumber.from(nftPrice.toString()),
+            priceWithInterest,
+            borrower.address,
+            0,
+            loanTimestamp,
+            orderExtraData,
+            oracleSigner,
+          );
+
+          // buy NFT
+          await buyNFTHelper(
+            poolProxy,
+            borrower,
+            collectionAddress,
+            tokenId,
+            BigNumber.from(nftPrice.toString()),
+            priceWithInterest,
+            seaportSettlementManager,
+            loanTimestamp,
+            loanDurationInSeconds,
+            orderExtraData,
+            oracleSignature,
+            BigNumber.from(ltvValue.toString()),
+          );
+
+          // advance blockchain 31 days so we can liquidate the loan
+          await ethers.provider.send('evm_increaseTime', [71 * 24 * 60 * 60]);
+          await ethers.provider.send('evm_mine', []);
+
+          // liquidate NFT
+          await poolProxy.connect(borrower).liquidateLoan(tokenId, borrower.address);
+
+          // advance blockchain 70 days so we can liquidate the loan for a 0 price
+          await ethers.provider.send('evm_increaseTime', [70 * 24 * 60 * 60]);
+          await ethers.provider.send('evm_mine', []);
+
+          const liquidatingPrice = await dutchAuctionLiquidatorFactory.getLiquidationCurrentPrice(
+            collectionAddress,
+            tokenId,
+          );
+          expect(liquidatingPrice).to.be.equal(0);
+
+          // buy NFT for 0
+          await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId);
+
+          const redeemValueAfter = await poolProxy.previewRedeem(balanceOfLpTokens);
+          expect(redeemValueAfter).to.be.lessThan(redeemValueBefore);
+        });
+
+        // if loan is liquidated at higher price that what is owed it should increase lp tokens price
+        it('should increase lp tokens price when loan is liquidated at higher price', async () => {
+          const {
+            poolProxy,
+            impersonatedWhaleSigner,
+            initialDailyInterestRateInBps,
+            seaportSettlementManager,
+            loanToValueInBps,
+            collectionAddress,
+            oracleSigner,
+            borrower,
+            lender1,
+            dutchAuctionLiquidatorFactory,
+          } = await buildTestContext();
+
+          const depositAmount = ethers.utils.parseEther('100');
+          await poolProxy
+            .connect(lender1)
+            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+              value: depositAmount,
+            });
+
+          const balanceOfLpTokens = await poolProxy.balanceOf(lender1.address);
+
+          const redeemValueBefore = await poolProxy.previewRedeem(balanceOfLpTokens);
+
+          // generate loan and repay it
+          const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+            await buyNFTPreparationHelper();
+
+          const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+
+          // deposit into pool
+          const deposit = ethers.utils.parseEther('100');
+          await poolProxy
+            .connect(impersonatedWhaleSigner)
+            .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+              value: deposit,
+            });
+
+          const loanDurationInDays = 30;
+          const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+
+          // remaining to be paid
+          const remainingToBePaid = nftPrice - ltvValue;
+
+          const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+
+          // calculate LoanPrice from NFT price
+          const [loanPrice] = await poolProxy.calculateLoanPrice(
+            remainingToBePaidInBN,
+            loanDurationInDays,
+          );
+
+          const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+
+          const oracleSignature = await mockSignLoan(
+            collectionAddress,
+            tokenId,
+            BigNumber.from(nftPrice.toString()),
+            priceWithInterest,
+            borrower.address,
+            0,
+            loanTimestamp,
+            orderExtraData,
+            oracleSigner,
+          );
+
+          // buy NFT
+          await buyNFTHelper(
+            poolProxy,
+            borrower,
+            collectionAddress,
+            tokenId,
+            BigNumber.from(nftPrice.toString()),
+            priceWithInterest,
+            seaportSettlementManager,
+            loanTimestamp,
+            loanDurationInSeconds,
+            orderExtraData,
+            oracleSignature,
+            BigNumber.from(ltvValue.toString()),
+          );
+
+          // advance blockchain 31 days so we can liquidate the loan
+          await ethers.provider.send('evm_increaseTime', [30 * 24 * 60 * 60]);
+          await ethers.provider.send('evm_mine', []);
+
+          // liquidate NFT
+          await poolProxy.connect(borrower).liquidateLoan(tokenId, borrower.address);
+
+          // advance blockchain 1 days so we can liquidate the loan for a higher price that what owed
+          await ethers.provider.send('evm_increaseTime', [1 * 24 * 60 * 60]);
+          await ethers.provider.send('evm_mine', []);
+
+          const liquidatingPrice = await dutchAuctionLiquidatorFactory.getLiquidationCurrentPrice(
+            collectionAddress,
+            tokenId,
+          );
+          expect(liquidatingPrice).to.be.equal(0);
+
+          // buy NFT for 0
+          await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId);
+
+          const redeemValueAfter = await poolProxy.previewRedeem(balanceOfLpTokens);
+          expect(redeemValueAfter).to.be.greaterThan(redeemValueBefore);
+        });
+
+        it('should decrease lp tokens price when loan is liquidated at lower price', async () => {
+          const {
+            poolProxy,
+            impersonatedWhaleSigner,
+            initialDailyInterestRateInBps,
+            seaportSettlementManager,
+            loanToValueInBps,
+            collectionAddress,
+            oracleSigner,
+            borrower,
+            lender1,
+            dutchAuctionLiquidatorFactory,
+          } = await buildTestContext();
+
+          const depositAmount = ethers.utils.parseEther('100');
+          await poolProxy
+            .connect(lender1)
+            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+              value: depositAmount,
+            });
+
+          const balanceOfLpTokens = await poolProxy.balanceOf(lender1.address);
+
+          const redeemValueBefore = await poolProxy.previewRedeem(balanceOfLpTokens);
+
+          // generate loan and repay it
+          const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
+            await buyNFTPreparationHelper();
+
+          const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+
+          // deposit into pool
+          const deposit = ethers.utils.parseEther('100');
+          await poolProxy
+            .connect(impersonatedWhaleSigner)
+            .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+              value: deposit,
+            });
+
+          const loanDurationInDays = 30;
+          const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+
+          // remaining to be paid
+          const remainingToBePaid = nftPrice - ltvValue;
+
+          const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+
+          // calculate LoanPrice from NFT price
+          const [loanPrice, adjustedRemainingLoanAmountWithInterest] =
+            await poolProxy.calculateLoanPrice(remainingToBePaidInBN, loanDurationInDays);
+
+          const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+
+          const oracleSignature = await mockSignLoan(
+            collectionAddress,
+            tokenId,
+            BigNumber.from(nftPrice.toString()),
+            priceWithInterest,
+            borrower.address,
+            0,
+            loanTimestamp,
+            orderExtraData,
+            oracleSigner,
+          );
+
+          // buy NFT
+          await buyNFTHelper(
+            poolProxy,
+            borrower,
+            collectionAddress,
+            tokenId,
+            BigNumber.from(nftPrice.toString()),
+            priceWithInterest,
+            seaportSettlementManager,
+            loanTimestamp,
+            loanDurationInSeconds,
+            orderExtraData,
+            oracleSignature,
+            BigNumber.from(ltvValue.toString()),
+          );
+
+          // advance blockchain 31 days so we can liquidate the loan
+          await ethers.provider.send('evm_increaseTime', [30 * 24 * 60 * 60]);
+          await ethers.provider.send('evm_mine', []);
+
+          // liquidate NFT
+          await poolProxy.connect(borrower).liquidateLoan(tokenId, borrower.address);
+
+          // advance blockchain 5 days so we can liquidate the loan for a lower price that whats owed
+          await ethers.provider.send('evm_increaseTime', [5 * 24 * 60 * 60]);
+          await ethers.provider.send('evm_mine', []);
+
+          const liquidatingPrice = await dutchAuctionLiquidatorFactory.getLiquidationCurrentPrice(
+            collectionAddress,
+            tokenId,
+          );
+          expect(liquidatingPrice).to.be.greaterThan(adjustedRemainingLoanAmountWithInterest);
+
+          // buy NFT for 0
+          await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId, {
+            value: liquidatingPrice,
+          });
+
+          const redeemValueAfter = await poolProxy.previewRedeem(balanceOfLpTokens);
+          expect(redeemValueAfter).to.be.lessThan(redeemValueBefore);
+        });
       });
     });
   });

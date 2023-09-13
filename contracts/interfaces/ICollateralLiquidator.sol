@@ -5,6 +5,7 @@ interface ICollateralLiquidator {
     function liquidate(
         address collateralToken,
         uint256 collateralTokenId,
-        uint256 startingPrice
+        uint256 startingPrice,
+        address borrower
     ) external;
 }

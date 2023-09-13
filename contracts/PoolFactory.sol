@@ -211,7 +211,11 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
             );
         } else {
             require(msg.value == 0, "PoolFactory: ETH deposit not allowed");
-            IPool(poolInstance).depositERC20(initialDeposit_, initialDailyInterestRateInBPS_);
+            IPool(poolInstance).depositERC20(
+                msg.sender,
+                initialDeposit_,
+                initialDailyInterestRateInBPS_
+            );
         }
 
         /* Add pool to registry */

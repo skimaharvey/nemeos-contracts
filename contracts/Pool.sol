@@ -43,17 +43,15 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     struct Loan {
-        // address borrower; // might not be needed
-        // address collection; // might not be needed
-        // uint256 tokenId; // might not be needed
         uint256 amountAtStart;
-        uint256 amountOwed;
+        uint256 amountOwedWithInterest;
         uint256 nextPaiementAmount;
+        uint256 interestAmountPerPaiement;
         uint256 loanDuration;
-        uint256 interestAmount;
         uint256 startTime;
         uint256 endTime;
         uint256 nextPaymentTime;
+        uint160 remainingNumberOfInstallments;
         bool isClosed;
         bool isInLiquidation;
     }
@@ -102,8 +100,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* State */
     /**************************************************************************/
 
-    /* Number of days you will need to vest for per pecent you are lending at*/
-    uint256 public vestingTimePerPerCentInterest = 3 days;
+    /* Number of time you will need to vest for per basis point you are lending at*/
+    uint256 public vestingTimePerBasisPoint;
 
     /* The daily interest rate */
     uint256 public dailyInterestRate;
@@ -120,8 +118,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* All ongoing liquidations */
     EnumerableSet.Bytes32Set private _ongoingLiquidations;
 
-    /* Vesting time per borrower */
-    mapping(address => uint256) public vestingTimePerBorrower;
+    /* Vesting time per lender */
+    mapping(address => uint256) public vestingTimePerLender;
 
     /**************************************************************************/
     /* Constructor */
@@ -157,6 +155,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         liquidator = liquidator_;
         NFTFilter = NFTFilter_;
         protocolFeeCollector = protocolFeeCollector_;
+        vestingTimePerBasisPoint = 12 hours; // todo: check with team
 
         // todo: check the naming with team
         string memory collectionName = string.concat(
@@ -250,17 +249,20 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         );
 
         /* check if loan is not paid back */
-        require(loan.amountOwed > 0, "Pool: loan already paid back");
+        require(loan.amountOwedWithInterest > 0, "Pool: loan already paid back");
 
         /* check if msg.value is equal to next payment amount */
         require(msg.value == loan.nextPaiementAmount, "Pool: msg.value not equal to next payment");
 
         /* update the loan */
-        loan.amountOwed -= msg.value;
+        loan.amountOwedWithInterest -= msg.value;
+
+        /* update the loan number of installement */
+        loan.remainingNumberOfInstallments -= 1;
 
         bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
 
-        if (loan.amountOwed == 0) {
+        if (loan.amountOwedWithInterest == 0) {
             /* next payment time is now */
             loan.nextPaymentTime = block.timestamp;
 
@@ -277,8 +279,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             _unwrapNFT(tokenId_, borrower_);
         } else {
             loan.nextPaymentTime += MAX_LOAN_REFUND_INTERVAL;
-            loan.nextPaiementAmount = loan.amountOwed <= loan.nextPaiementAmount
-                ? loan.amountOwed
+            loan.nextPaiementAmount = loan.amountOwedWithInterest <= loan.nextPaiementAmount
+                ? loan.amountOwedWithInterest
                 : loan.nextPaiementAmount;
         }
 
@@ -303,7 +305,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         require(block.timestamp >= loan.nextPaymentTime, "Pool: loan paiement not late");
 
         /* check if loan is not paid back */
-        require(loan.amountOwed > 0, "Pool: loan already paid back");
+        require(loan.amountOwedWithInterest > 0, "Pool: loan already paid back");
 
         bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
 
@@ -328,7 +330,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         ICollateralLiquidator(liquidator).liquidate(
             collectionAddress,
             tokenId_,
-            loan.amountAtStart
+            loan.amountAtStart,
+            borrower_
         );
     }
 
@@ -386,22 +389,58 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /** @dev Allows to calculate the price of a loan.
      * @param remainingLoanAmount_ The remaining amount of the loan.
      * @param loanDurationInDays_ The duration of the loan in days.
-     * @return totalAmountOwed The total amount to be paid back.
-     * @return interestAmount The amount of interest to be paid back.
+     * @return adjustedRemainingLoanAmountWithInterest The total amount to be paid back with interest.
+     * @return interestAmount The amount of interest to be paid back per paiement.
+     * @return nextPaiementAmount The amount to be paid back per paiement.
      */
     function calculateLoanPrice(
         uint256 remainingLoanAmount_,
         uint256 loanDurationInDays_
-    ) public view returns (uint256, uint256) {
-        /* check if pool has enough */
-        require(remainingLoanAmount_ <= totalAssets(), "Pool: not enough assets");
+    ) public view returns (uint256, uint256, uint256, uint160) {
+        /* check if pool has enough balance*/
+        if (address(_asset) != address(0)) {
+            require(
+                remainingLoanAmount_ <= _asset.balanceOf(address(this)),
+                "Pool: not enough assets"
+            );
+        } else {
+            require(remainingLoanAmount_ <= address(this).balance, "Pool: not enough assets");
+        }
+
+        /* number of paiements installments */
+        uint256 numberOfInstallments = loanDurationInDays_ % (MAX_LOAN_REFUND_INTERVAL / 1 days) ==
+            0
+            ? loanDurationInDays_ / (MAX_LOAN_REFUND_INTERVAL / 1 days)
+            : (loanDurationInDays_ / (MAX_LOAN_REFUND_INTERVAL / 1 days)) + 1;
 
         /* calculate the interests where interest amount is equal number of days * daily interest */
-        uint256 interestAmount = (remainingLoanAmount_ * dailyInterestRate * loanDurationInDays_) /
-            BASIS_POINTS;
+        uint256 totalInterestAmount = (remainingLoanAmount_ *
+            dailyInterestRate *
+            loanDurationInDays_) / BASIS_POINTS;
+
+        /* calculate the interest amount per paiement */
+        uint256 interestAmountPerPaiement = totalInterestAmount % numberOfInstallments == 0
+            ? totalInterestAmount / numberOfInstallments
+            : (totalInterestAmount / numberOfInstallments) + 1;
+
+        /* calculate the total amount to be paid back with interest */
+        uint256 adjustedRemainingLoanAmountWithInterest = remainingLoanAmount_ +
+            interestAmountPerPaiement *
+            numberOfInstallments;
+
+        uint256 nextPaiementAmount = adjustedRemainingLoanAmountWithInterest %
+            numberOfInstallments ==
+            0
+            ? adjustedRemainingLoanAmountWithInterest / numberOfInstallments
+            : (adjustedRemainingLoanAmountWithInterest / numberOfInstallments) + 1;
 
         /* calculate the amount to be paid back */
-        return (remainingLoanAmount_ + interestAmount, interestAmount);
+        return (
+            adjustedRemainingLoanAmountWithInterest,
+            interestAmountPerPaiement,
+            nextPaiementAmount,
+            uint160(numberOfInstallments)
+        );
     }
 
     /**************************************************************************/
@@ -417,14 +456,16 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* calculate the number of days of the loan */
         uint256 loanDurationInDays = loanDuration_ / 1 days;
 
-        (uint256 totalAmountOwed, uint256 interestAmount) = calculateLoanPrice(
-            remainingLoanAmount_,
-            loanDurationInDays
-        );
+        (
+            uint256 amountOwedWithInterest,
+            uint256 interestAmountPerPaiement,
+            uint256 nextPaiementAmount,
+            uint160 numberOfInstallments
+        ) = calculateLoanPrice(remainingLoanAmount_, loanDurationInDays);
 
         /* check if the amount to be paid back is not too high */
         require(
-            totalAmountOwed + msg.value <= priceIncludingFees_,
+            amountOwedWithInterest + msg.value <= priceIncludingFees_,
             "Pool: amount to be paid back too high"
         );
 
@@ -436,23 +477,16 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             ? block.timestamp + MAX_LOAN_REFUND_INTERVAL
             : block.timestamp + loanDuration_;
 
-        /* calculate the number of paiements installments */
-        uint256 numberOfInstallments = loanDurationInDays / (MAX_LOAN_REFUND_INTERVAL / 1 days);
-
-        /* calculate the next paiement amount */
-        uint256 nextPaiementAmount = totalAmountOwed % numberOfInstallments == 0
-            ? totalAmountOwed / numberOfInstallments
-            : (totalAmountOwed / numberOfInstallments) + 1;
-
         Loan memory loan = Loan({
-            amountAtStart: remainingLoanAmount_ + msg.value,
-            amountOwed: totalAmountOwed,
+            amountAtStart: amountOwedWithInterest + msg.value,
+            amountOwedWithInterest: amountOwedWithInterest,
             nextPaiementAmount: nextPaiementAmount,
+            interestAmountPerPaiement: interestAmountPerPaiement,
             loanDuration: loanDuration_,
-            interestAmount: interestAmount,
             startTime: block.timestamp,
             endTime: endTime,
             nextPaymentTime: nextPaymentTime,
+            remainingNumberOfInstallments: numberOfInstallments,
             isClosed: false,
             isInLiquidation: false
         });
@@ -465,7 +499,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* store the loan */
         loans[loanHash] = loan;
 
-        return totalAmountOwed;
+        return amountOwedWithInterest;
     }
 
     function _unwrapNFT(uint256 tokenId_, address borrower_) internal {
@@ -481,50 +515,69 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     /** @dev Was created in order to deposit native token into the pool when the asset address is address(0).
-     * @param receiver The address of the receiver.
+     * @param receiver_ The address of the receiver.
      * @param dailyInterestRate_ The daily interest rate requested by the lender.
      * @return shares The number of shares minted.
      */
     function depositNativeTokens(
-        address receiver,
+        address receiver_,
         uint256 dailyInterestRate_
     ) external payable returns (uint256) {
+        /* check that asset is ETH or else use the the depositERC20 function */
         require(address(_asset) == address(0), "Pool: asset is not ETH");
+
+        /* check that msg.value is not 0 */
         require(msg.value > 0, "Pool: msg.value is 0");
+
         /* check that max daily interest is respected */
         require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
 
-        require(msg.value <= maxDeposit(receiver), "ERC4626: deposit more than max");
+        require(msg.value <= maxDeposit(receiver_), "ERC4626: deposit more than max");
+
+        /* update the vesting time for lender */
+        _updateVestingTime(dailyInterestRate_);
 
         uint256 shares = previewDeposit(msg.value);
 
         /* update the daily interest rate with current one */
-        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
+        _updateDailyInterestRateOnDeposit(dailyInterestRate_, shares);
 
-        _deposit(_msgSender(), receiver, msg.value, shares);
+        _deposit(_msgSender(), receiver_, msg.value, shares);
 
         return shares;
     }
 
     /** @dev Allows to deposit ERC20 tokens into the pool.
+     * @param receiver The address of the receiver.
      * @param assets The amount of assets to be deposited.
      * @param dailyInterestRate_ The daily interest rate requested by the lender.
      * @return shares The number of shares minted.
      */
     function depositERC20(
+        address receiver,
         uint256 assets,
         uint256 dailyInterestRate_
-    ) external payable returns (uint256) {
+    ) external returns (uint256) {
+        /* check that asset is not ETH or else use the the depositNativeTokens function */
+        require(address(_asset) != address(0), "Pool: asset is not ETH");
+
+        /* check that assets is superior to 0 */
+        require(assets != 0, "Pool: assets is 0");
+
         /* check that max daily interest is respected */
         require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
 
+        require(assets <= maxDeposit(receiver), "ERC4626: deposit more than max");
+
+        /* update the vesting time for lender */
         _updateVestingTime(dailyInterestRate_);
 
-        /* return the shares minted */
-        uint256 shares = deposit(assets, msg.sender);
+        uint256 shares = previewDeposit(assets);
 
-        /* update the daily interest rate */
+        /* update the daily interest rate with current one */
         _updateDailyInterestRateOnDeposit(dailyInterestRate_, shares);
+
+        _deposit(_msgSender(), receiver, assets, shares);
 
         return shares;
     }
@@ -534,11 +587,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     function _updateVestingTime(uint256 dailyInterestRate_) internal {
-        uint256 currentVestingTime = vestingTimePerBorrower[msg.sender];
-        uint256 newVestingTime = (dailyInterestRate_ * vestingTimePerPerCentInterest) /
-            BASIS_POINTS;
+        uint256 currentVestingTime = vestingTimePerLender[msg.sender];
+        uint256 newVestingTime = block.timestamp + (dailyInterestRate_ * vestingTimePerBasisPoint);
         if (currentVestingTime < newVestingTime) {
-            vestingTimePerBorrower[msg.sender] = newVestingTime;
+            vestingTimePerLender[msg.sender] = newVestingTime;
         }
     }
 
@@ -599,6 +651,27 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         return shares;
     }
 
+    /** @dev See {IERC4626-mint}.
+     *
+     * As opposed to {deposit}, minting is allowed even if the vault is in a state where the price of a share is zero.
+     * In this case, the shares will be minted without requiring any assets to be deposited.
+     */
+    function mint(uint256 shares, address receiver) public virtual override returns (uint256) {
+        /* check that asset is not ETH or else use the the depositNativeTokens function */
+        require(address(_asset) != address(0), "Pool: asset is ETH");
+
+        require(shares <= maxMint(receiver), "ERC4626: mint more than max");
+
+        uint256 assets = previewMint(shares);
+
+        // /* update the daily interest rate with current one */
+        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
+
+        _deposit(_msgSender(), receiver, assets, shares);
+
+        return assets;
+    }
+
     /** @dev See {IERC4626-redeem}.
      * Was modified to include the vesting logic.
      */
@@ -607,10 +680,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         address receiver,
         address owner
     ) public virtual override returns (uint256) {
-        require(
-            block.timestamp >= vestingTimePerBorrower[owner],
-            "Pool: vesting time not respected"
-        );
+        require(block.timestamp >= vestingTimePerLender[owner], "Pool: vesting time not respected");
 
         require(shares <= maxRedeem(owner), "ERC4626: redeem more than max");
 
@@ -629,10 +699,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         address owner
     ) public override returns (uint256) {
         /* check that vesting time is respected */
-        require(
-            block.timestamp >= vestingTimePerBorrower[owner],
-            "Pool: vesting time not respected"
-        );
+        require(block.timestamp >= vestingTimePerLender[owner], "Pool: vesting time not respected");
 
         require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
 
@@ -643,10 +710,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         return shares;
     }
 
-    /** @dev See {IERC4626-maxWithdraw}.
-     * Was modified to return the was is widrawable depending on the balance held by the pool.
+    /** @dev Modified version of {IERC4626-maxWithdraw}
+     * returns what is widrawable depending on the balance held by the pool.
      */
-    function maxWithdraw(address owner) public view override returns (uint256) {
+    function maxWithdrawAvailable(address owner) public view returns (uint256) {
         uint256 expectedBalance = _convertToAssets(balanceOf(owner), MathUpgradeable.Rounding.Down);
         if (expectedBalance >= totalAssets()) {
             return totalAssets();
@@ -655,16 +722,41 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         }
     }
 
-    /** @dev See {IERC4626-totalAssets}.
-     * Was modified to support ETH as an asset, and return the balance of the asset held by the pool.
-     * @return The total value of the assets held by the pool.
+    /** @dev Modified version of {IERC4626-totalAssets} that supports ETH as an asset
+     * @return The total value of the assets held by the pool at the moment.
      */
-    function totalAssets() public view override returns (uint256) {
+    function totalAssetsInPool() public view returns (uint256) {
         if (address(_asset) == address(0)) {
             return address(this).balance;
         } else {
             return _asset.balanceOf(address(this));
         }
+    }
+
+    function totalAssets() public view override returns (uint256) {
+        /* calculate the total amount owed from onGoingLoans */
+        uint256 totatOnGoingLoansAmountOwed;
+        uint256 numberOfOnGoingLoans = _ongoingLoans.length();
+        for (uint256 i = 0; i < numberOfOnGoingLoans; i++) {
+            bytes32 loanHash = _ongoingLoans.at(i);
+            Loan memory loan = loans[loanHash];
+            totatOnGoingLoansAmountOwed += (loan.amountOwedWithInterest -
+                (loan.remainingNumberOfInstallments * loan.interestAmountPerPaiement));
+        }
+
+        /* calculate the total amount owed from onGoingLiquidations */
+        uint256 totatOnGoingLiquidationsAmountOwed;
+        uint256 numberOfOnGoingLiquidations = _ongoingLiquidations.length();
+        for (uint256 i = 0; i < numberOfOnGoingLiquidations; i++) {
+            bytes32 loanHash = _ongoingLiquidations.at(i);
+            Loan memory loan = loans[loanHash];
+            totatOnGoingLiquidationsAmountOwed += (loan.amountOwedWithInterest -
+                (loan.remainingNumberOfInstallments * loan.interestAmountPerPaiement));
+        }
+
+        /* equals actual balance + sum of amountOwed in onGoingLoans + sum of amountOwed in onGoingLiquidations */
+        return
+            totalAssetsInPool() + totatOnGoingLoansAmountOwed + totatOnGoingLiquidationsAmountOwed;
     }
 
     function _deposit(
@@ -674,6 +766,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 shares
     ) internal override {
         if (address(_asset) != address(0)) {
+            /* safety checks but should not be possible*/
             require(msg.value == 0, "Pool: ETH deposit amount mismatch");
             // If _asset is ERC777, `transferFrom` can trigger a reentrancy BEFORE the transfer happens through the
             // `tokensToSend` hook. On the other hand, the `tokenReceived` hook, that is triggered after the transfer,
@@ -687,6 +780,19 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         _mint(receiver, shares);
         emit Deposit(caller, receiver, assets, shares);
+    }
+
+    // todo: fuzz function
+    function _convertToShares(
+        uint256 assets,
+        MathUpgradeable.Rounding rounding
+    ) internal view override returns (uint256) {
+        return
+            assets.mulDiv(
+                totalSupply() + 10 ** _decimalsOffset(),
+                totalAssets() - msg.value + 1, // remove msg.value as it is already accounted for in totalAssets()
+                rounding
+            );
     }
 
     // Todo: add the vesting logic
@@ -723,12 +829,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* Admin API */
     /**************************************************************************/
 
-    function updateVestingTimePerPerCentInterest(uint256 vestingTimePerPerCentInterest_) external {
+    function updateVestingTimePerBasisPoint(uint256 vestingTimePerBasisPoint_) external {
         require(
             msg.sender == protocolFeeCollector,
-            "Pool: Only protocol fee collector can update vestingTimePerPerCentInterest"
+            "Pool: Only protocol fee collector can update vestingTimePerBasisPoint"
         );
-        vestingTimePerPerCentInterest = vestingTimePerPerCentInterest_;
+        vestingTimePerBasisPoint = vestingTimePerBasisPoint_;
     }
 
     // TODO: add pause/unpause logic
