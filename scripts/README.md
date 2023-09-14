@@ -58,15 +58,23 @@ npx hardhat run scripts/deployment/deployPoolFactoryProxy.ts --network goerli
 
 Currently deployed at `0x3740fBf2663A1B9D7e6f1E2b5d75F3b9f47c0664`
 
-3. **Deploy Seaport Settlement Manager Contract**
+3. **Deploy Collateral Factory Contract**
+
+```bash
+   npx hardhat run scripts/deployment/deployCollateralFactory.ts --network goerli
+```
+
+4. **Deploy Seaport Settlement Manager Contract**
+
+Add the Pool Factory Porxy address to the `POOL_FACTORY` variable in the `deployCollateralFactory.ts` script and then run the following command:
 
 ```bash
    npx hardhat run scripts/deployment/deploySeaportSettlementManager.ts --network goerli
 ```
 
-Currently deployed at `0xF7eea5164fA57a0dbC2eFBdf18e09062bebCCa4b`
+Currently deployed at `0xC385568955b1434207bbC598026Da0d145aC7436`
 
-4. **Deploy NFT Filter Contract**
+5. **Deploy NFT Filter Contract**
 
 Add the Oracle address to the `ORACLE_ADDRESS` variable and the Settlement Managers supported in the `SETTLEMENT_MANAGERS` variable in the `deployNFTFilter.ts` script and then run the following command:
 
@@ -76,7 +84,7 @@ npx hardhat run scripts/deployment/deployNFTFilter.ts --network goerli
 
 Currently deployed at `0x90d5e0cd6E36E274Ed801F1b5a01Af0f2e379D10`
 
-5. **Deploy Dutch Auction Contract**
+6. **Deploy Dutch Auction Contract**
 
 Add the PoolFactory Proxy Contract address to the `POOL_FACTORY` variable in the `deployDutchAuction.ts` script and then run the following command:
 
@@ -85,3 +93,11 @@ npx hardhat run scripts/deployment/deployDutchAuctionLiquidator.ts --network goe
 ```
 
 Currently deployed at `0xc162c3a7393ffAEf4306A3e57A822264dF95B6c1`
+
+6. **Deploy Pool Implementation Contract**
+
+```bash
+npx hardhat run scripts/deployment/deployPoolImplementation.ts --network goerli
+```
+
+Currently deployed at `0x30A82525fF36D3954E37E06e11d31626896496f6`
