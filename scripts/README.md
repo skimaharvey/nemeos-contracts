@@ -94,7 +94,7 @@ npx hardhat run scripts/deployment/deployDutchAuctionLiquidator.ts --network goe
 
 Currently deployed at `0xc162c3a7393ffAEf4306A3e57A822264dF95B6c1`
 
-6. **Deploy Pool Implementation Contract**
+7. **Deploy Pool Implementation Contract**
 
 ```bash
 npx hardhat run scripts/deployment/deployPoolImplementation.ts --network goerli

@@ -22,6 +22,7 @@ async function main() {
     INITIAL_DEPOSIT,
     NFT_FILTER,
     LIQUIDATOR,
+    { value: INITIAL_DEPOSIT },
   );
 
   const tx = await poolFactory.createPool(
@@ -32,10 +33,13 @@ async function main() {
     INITIAL_DEPOSIT,
     NFT_FILTER,
     LIQUIDATOR,
+    { value: INITIAL_DEPOSIT },
   );
   await tx.wait(1);
   console.log('tx:', tx);
   console.log('poolAddres:', poolAddres);
 }
+
+// deployed to: 0x87c91Da4A71Ab7E2593aAacc4Fdc0C2379ecc160 with 20% LTV
 
 main();

@@ -38,9 +38,9 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
 
     /**
      * @notice Emitted when the allowed loan to value ratios are updated
-     * @param allowedLtv New allowed loan to value ratios
+     * @param allowdLTVs New allowed loan to value ratios
      */
-    event UpdateAllowedLtv(uint256[] allowedLtv);
+    event UpdateallowdLTVs(uint256[] allowdLTVs);
 
     /**
      * @notice Emitted when the collateral factory is updated
@@ -61,7 +61,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**
      * @notice Allowed loan to value ratio
      */
-    uint256[] public allowedLtv;
+    uint256[] public allowdLTVs;
 
     /**
      * @notice Allowed NFT filters
@@ -252,6 +252,14 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         return _pools.length();
     }
 
+    /**
+     * @notice Retrieves all allowed LTVs
+     * @return List of allowed LTVs
+     */
+    function getallowdLTVss() external view returns (uint256[] memory) {
+        return allowdLTVs;
+    }
+
     /**************************************************************************/
     /* Admin API */
     /**************************************************************************/
@@ -273,10 +281,10 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         _upgradeToAndCall(newImplementation, data, false);
     }
 
-    function updateAllowedLtv(uint256[] calldata allowedLtv_) external onlyOwner {
-        allowedLtv = allowedLtv_;
+    function updateallowdLTVs(uint256[] calldata allowdLTVs_) external onlyOwner {
+        allowdLTVs = allowdLTVs_;
 
-        emit UpdateAllowedLtv(allowedLtv_);
+        emit UpdateallowdLTVs(allowdLTVs_);
     }
 
     function updateAllowedNFTFilters(address[] calldata allowedNFTFilters_) external onlyOwner {
@@ -307,8 +315,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**************************************************************************/
 
     function _verifyLtv(uint256 ltv_) internal view returns (bool) {
-        for (uint256 i = 0; i < allowedLtv.length; i++) {
-            if (allowedLtv[i] == ltv_) {
+        for (uint256 i = 0; i < allowdLTVs.length; i++) {
+            if (allowdLTVs[i] == ltv_) {
                 return true;
             }
         }
