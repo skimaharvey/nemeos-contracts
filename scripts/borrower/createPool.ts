@@ -3,7 +3,7 @@ import { ethers } from 'hardhat';
 const POOL_FACTORY = '0x3740fBf2663A1B9D7e6f1E2b5d75F3b9f47c0664';
 
 // constants to be set by the user
-const COLLECTION_ADDRESS = '0xDaA3812B8FD34D01711105a6DFb669c50ab8fee3';
+const COLLECTION_ADDRESS = '0xaF614a2ced7eC8CdFfaebC10ba797f6C9ebfcd78';
 const POOL_CURRENCY = ethers.constants.AddressZero; // ETH
 const POOL_LTV_BPS = 2_000; // 20%
 const INITIAL_DAILY_RATES = 20; // 0.1%

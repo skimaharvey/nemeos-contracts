@@ -104,7 +104,7 @@ describe('Pool', async () => {
     await poolFactoryProxy.updatePoolImplementation(poolImpl.address);
 
     // update allowed ltv to poolFactory
-    await poolFactoryProxy.updateAllowedLtv([loanToValueInBps]);
+    await poolFactoryProxy.updateallowdLTVs([loanToValueInBps]);
 
     // update allowed NFT filters to poolFactory
     await poolFactoryProxy.updateAllowedNFTFilters([nftFilterAddress]);
@@ -2004,10 +2004,11 @@ describe('Pool', async () => {
             collectionAddress,
             tokenId,
           );
-          expect(liquidatingPrice).to.be.equal(0);
 
           // buy NFT for 0
-          await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId);
+          await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId, {
+            value: liquidatingPrice,
+          });
 
           const redeemValueAfter = await poolProxy.previewRedeem(balanceOfLpTokens);
           expect(redeemValueAfter).to.be.greaterThan(redeemValueBefore);

@@ -392,6 +392,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
      * @return adjustedRemainingLoanAmountWithInterest The total amount to be paid back with interest.
      * @return interestAmount The amount of interest to be paid back per paiement.
      * @return nextPaiementAmount The amount to be paid back per paiement.
+     * @return numberOfInstallments The number of paiements installments.
      */
     function calculateLoanPrice(
         uint256 remainingLoanAmount_,
