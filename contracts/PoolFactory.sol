@@ -40,7 +40,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      * @notice Emitted when the allowed loan to value ratios are updated
      * @param allowdLTVs New allowed loan to value ratios
      */
-    event UpdateallowdLTVs(uint256[] allowdLTVs);
+    event UpdateAllowedLTVs(uint256[] allowdLTVs);
 
     /**
      * @notice Emitted when the collateral factory is updated
@@ -281,10 +281,10 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         _upgradeToAndCall(newImplementation, data, false);
     }
 
-    function updateallowdLTVs(uint256[] calldata allowdLTVs_) external onlyOwner {
+    function updateAllowedLTVs(uint256[] calldata allowdLTVs_) external onlyOwner {
         allowdLTVs = allowdLTVs_;
 
-        emit UpdateallowdLTVs(allowdLTVs_);
+        emit UpdateAllowedLTVs(allowdLTVs_);
     }
 
     function updateAllowedNFTFilters(address[] calldata allowedNFTFilters_) external onlyOwner {

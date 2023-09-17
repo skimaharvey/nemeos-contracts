@@ -1,6 +1,6 @@
 import { ethers } from 'hardhat';
 
-const FACTORY_IMPLEMENTATION = '0x955B171c1b3aCdd4C01e1b55e765C4f37b3230eD';
+const FACTORY_IMPLEMENTATION = '0x6935fb1669C7ddbd7a1E2bF4883146fD6615558b';
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -18,6 +18,8 @@ async function main() {
 
   // initialize the proxy
   await poolFactory.initialize(deployer.address, deployer.address);
+
+  // latest: 0x9c4D44f3c7a157f8b5b6dA4A4E27ff80b015a86a
 }
 
 main();

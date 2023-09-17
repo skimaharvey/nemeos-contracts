@@ -49,7 +49,7 @@ describe('PoolFactory', async () => {
     await poolFactoryProxy.updatePoolImplementation(poolImpl.address);
 
     // update allowed ltv to poolFactory
-    await poolFactoryProxy.updateallowdLTVs([loanToValueInBps]);
+    await poolFactoryProxy.updateAllowedLTVs([loanToValueInBps]);
 
     // update allowed NFT filters to poolFactory
     await poolFactoryProxy.updateAllowedNFTFilters([randomNFTFilterAddress]);

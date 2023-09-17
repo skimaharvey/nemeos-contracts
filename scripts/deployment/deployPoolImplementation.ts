@@ -5,6 +5,8 @@ async function main() {
   const poolImplementation = await PoolImplementationFactory.deploy();
 
   console.log('PoolImplementation deployed to:', poolImplementation.address);
+
+  //latest: 0x34FC83C00E9c2886379AE408Ed3dAfEA3A091544
 }
 
 main();

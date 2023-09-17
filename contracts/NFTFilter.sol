@@ -39,7 +39,7 @@ contract NFTFilter {
      *
      * A nonce is incremented each time a customer starts a loan.
      */
-    mapping(address => uint256) customerNonces;
+    mapping(address => uint256) public customerNonces;
 
     /**************************************************************************/
     /* Events */

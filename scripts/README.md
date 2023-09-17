@@ -82,7 +82,7 @@ Add the Oracle address to the `ORACLE_ADDRESS` variable and the Settlement Manag
 npx hardhat run scripts/deployment/deployNFTFilter.ts --network goerli
 ```
 
-Currently deployed at `0x90d5e0cd6E36E274Ed801F1b5a01Af0f2e379D10`
+Currently deployed at `0x2aF1fAB0e17dA284bcF11820f8795D82DD74fcc6`
 
 6. **Deploy Dutch Auction Contract**
 

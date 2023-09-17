@@ -6,6 +6,8 @@ async function main() {
   await PoolFactory.deployed();
 
   console.log('PoolFactory deployed to:', PoolFactory.address);
+
+  // latest: 0x6935fb1669C7ddbd7a1E2bF4883146fD6615558b
 }
 
 main();
