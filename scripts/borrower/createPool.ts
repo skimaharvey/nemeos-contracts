@@ -1,12 +1,12 @@
 import { ethers } from 'hardhat';
 
-const POOL_FACTORY = '0x9c4D44f3c7a157f8b5b6dA4A4E27ff80b015a86a';
+const POOL_FACTORY = '0x6F9B857eDc7De1d2ceA2f3a5e4F2Ad7F2ba40760';
 
 // constants to be set by the user
-const COLLECTION_ADDRESS = '0xaF614a2ced7eC8CdFfaebC10ba797f6C9ebfcd78';
+const COLLECTION_ADDRESS = '0xdaa3812b8fd34d01711105a6dfb669c50ab8fee3';
 const POOL_CURRENCY = ethers.constants.AddressZero; // ETH
-const POOL_LTV_BPS = 1_000; // 20%
-const INITIAL_DAILY_RATES = 12; // 0.05%
+const POOL_LTV_BPS = 2_000; // 20%
+const INITIAL_DAILY_RATES = 5; // 0.05%
 const INITIAL_DEPOSIT = ethers.utils.parseEther('0.1'); // 0.1 ETH
 const NFT_FILTER = '0x6B22E1A41a78f47410898f37Ede9afBf17188616';
 const LIQUIDATOR = '0x3717e41333C490B9D38779a4155af7D83960951a';
