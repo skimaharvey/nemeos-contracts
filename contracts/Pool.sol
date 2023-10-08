@@ -32,10 +32,78 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* Events */
     /**************************************************************************/
 
-    event LiquidationRefund(
-        address indexed collateralToken,
-        uint256 indexed collateralTokenId,
+    /**
+     * @dev Emitted when a NFT is bought.
+     * @param collectionAddress The address of the NFT collection.
+     * @param tokenId The ID of the NFT.
+     * @param priceOfNFT The price of the NFT.
+     * @param priceIncludingFees The price of the NFT including fees.
+     * @param settlementManager The address of the settlement manager.
+     * @param loanTimestamp The timestamp of the loan.
+     * @param loanDuration The duration of the loan.
+     */
+    event NFTBought(
+        address indexed collectionAddress,
+        uint256 indexed tokenId,
+        uint256 priceOfNFT,
+        uint256 priceIncludingFees,
+        address settlementManager,
+        uint256 loanTimestamp,
+        uint256 loanDuration
+    );
+
+    /**
+     * @dev Emitted when a loan is entirely refunded.
+     * @param token The address of the NFT collection.
+     * @param tokenId The ID of the NFT.
+     * @param borrower The address of the borrower.
+     * @param amount The amount refunded.
+     */
+    event LoanEntirelyRefunded(
+        address indexed token,
+        uint256 indexed tokenId,
+        address indexed borrower,
         uint256 amount
+    );
+
+    /**
+     * @dev Emitted when a loan is liquidated.
+     * @param token The address of the NFT collection.
+     * @param tokenId The ID of the NFT.
+     * @param borrower The address of the borrower.
+     * @param liquidator The address of the liquidator.
+     * @param amount The amount refunded.
+     */
+    event LoanLiquidated(
+        address indexed token,
+        uint256 indexed tokenId,
+        address indexed borrower,
+        address liquidator,
+        uint256 amount
+    );
+
+    /**
+     * @dev Emitted when a loan is refunded from liquidation.
+     * @param token The address of the NFT collection.
+     * @param tokenId The ID of the NFT.
+     * @param amount The amount refunded.
+     */
+    event LoanLiquidationRefund(address indexed token, uint256 indexed tokenId, uint256 amount);
+
+    /**
+     * @dev Emitted when a loan is partially refunded.
+     * @param token The address of the NFT collection.
+     * @param tokenId The ID of the NFT.
+     * @param borrower The address of the borrower.
+     * @param amountPaid The amount paid.
+     * @param amountRemaining The amount remaining.
+     */
+    event LoanPartiallyRefunded(
+        address indexed token,
+        uint256 indexed tokenId,
+        address indexed borrower,
+        uint256 amountPaid,
+        uint256 amountRemaining
     );
 
     /**************************************************************************/
@@ -43,6 +111,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     struct Loan {
+        address borrower;
+        address collection; // to be removed
+        uint256 tokenID; // to be removed
         uint256 amountAtStart;
         uint256 amountOwedWithInterest;
         uint256 nextPaiementAmount;
@@ -227,6 +298,16 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         /* Mint wrapped NFT */
         ICollateralWrapper(wrappedNFT).mint(tokenId_, msg.sender);
+
+        emit NFTBought(
+            collectionAddress_,
+            tokenId_,
+            priceOfNFT_,
+            priceIncludingFees_,
+            settlementManager_,
+            loanTimestamp_,
+            loanDuration_
+        );
     }
 
     /** @dev Allows to refund a loan.
@@ -277,11 +358,28 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
             /* unwrap NFT */
             _unwrapNFT(tokenId_, borrower_);
+
+            /* emit LoanEntirelyRefunded event */
+            emit LoanEntirelyRefunded(
+                nftCollection,
+                loan.tokenID,
+                loan.borrower,
+                loan.amountAtStart
+            );
         } else {
             loan.nextPaymentTime += MAX_LOAN_REFUND_INTERVAL;
             loan.nextPaiementAmount = loan.amountOwedWithInterest <= loan.nextPaiementAmount
                 ? loan.amountOwedWithInterest
                 : loan.nextPaiementAmount;
+
+            /* emit LoanPartiallyRefunded event */
+            emit LoanPartiallyRefunded(
+                nftCollection,
+                loan.tokenID,
+                loan.borrower,
+                msg.value,
+                loan.remainingNumberOfInstallments * loan.nextPaiementAmount
+            );
         }
 
         /* store the loan */
@@ -333,6 +431,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             loan.amountAtStart,
             borrower_
         );
+
+        /* emit LoanLiquidated event */
+        emit LoanLiquidated(collectionAddress, tokenId_, borrower_, liquidator, loan.amountAtStart);
     }
 
     /** @dev Called by the liquidator contract to refund the pool after liquidation.
@@ -360,11 +461,14 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         /* store the loan */
         loans[loanHash] = loan;
+
+        emit LoanLiquidationRefund(nftCollection, tokenId_, msg.value);
     }
 
     /** @dev Allows to retrieve the ongoing loans.
      *  @return onGoingLoansArray The array of ongoing loans.
      */
+    // todo: modify to return a Loan struct array
     function onGoingLoans() external view returns (bytes32[] memory) {
         uint256 length = _ongoingLoans.length();
         bytes32[] memory onGoingLoansArray = new bytes32[](length);
@@ -479,6 +583,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             : block.timestamp + loanDuration_;
 
         Loan memory loan = Loan({
+            borrower: msg.sender,
+            collection: nftCollection,
+            tokenID: tokenId_,
             amountAtStart: amountOwedWithInterest + msg.value,
             amountOwedWithInterest: amountOwedWithInterest,
             nextPaiementAmount: nextPaiementAmount,
@@ -544,41 +651,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         _updateDailyInterestRateOnDeposit(dailyInterestRate_, shares);
 
         _deposit(_msgSender(), receiver_, msg.value, shares);
-
-        return shares;
-    }
-
-    /** @dev Allows to deposit ERC20 tokens into the pool.
-     * @param receiver The address of the receiver.
-     * @param assets The amount of assets to be deposited.
-     * @param dailyInterestRate_ The daily interest rate requested by the lender.
-     * @return shares The number of shares minted.
-     */
-    function depositERC20(
-        address receiver,
-        uint256 assets,
-        uint256 dailyInterestRate_
-    ) external returns (uint256) {
-        /* check that asset is not ETH or else use the the depositNativeTokens function */
-        require(address(_asset) != address(0), "Pool: asset is not ETH");
-
-        /* check that assets is superior to 0 */
-        require(assets != 0, "Pool: assets is 0");
-
-        /* check that max daily interest is respected */
-        require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
-
-        require(assets <= maxDeposit(receiver), "ERC4626: deposit more than max");
-
-        /* update the vesting time for lender */
-        _updateVestingTime(dailyInterestRate_);
-
-        uint256 shares = previewDeposit(assets);
-
-        /* update the daily interest rate with current one */
-        _updateDailyInterestRateOnDeposit(dailyInterestRate_, shares);
-
-        _deposit(_msgSender(), receiver, assets, shares);
 
         return shares;
     }
@@ -746,6 +818,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         }
 
         /* calculate the total amount owed from onGoingLiquidations */
+        //TODO: review logic here
         uint256 totatOnGoingLiquidationsAmountOwed;
         uint256 numberOfOnGoingLiquidations = _ongoingLiquidations.length();
         for (uint256 i = 0; i < numberOfOnGoingLiquidations; i++) {
