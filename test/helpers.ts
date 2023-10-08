@@ -159,5 +159,17 @@ export async function buyNFTHelper(
       { value: ltvValue },
     );
 
+  await expect(tx)
+    .to.emit(poolProxy, 'LoanStarted')
+    .withArgs(
+      ethers.utils.getAddress(collecttionAddress),
+      offerIdentifier,
+      ethers.utils.getAddress(borrower.address),
+      nftPrice,
+      priceWithInterest,
+      ethers.utils.getAddress(seaportSettlementManager.address),
+      loanTimestamp,
+      loanDurationInSeconds,
+    );
   await expect(tx).to.emit(seaportSettlementManager, 'BuyExecuted');
 }

@@ -1100,9 +1100,21 @@ describe('Pool', async () => {
         await ethers.provider.send('evm_mine', []);
 
         // refund loan of loanPrice / 3 (1/3 of loan price)
-        await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
-          value: loanPrice.div(3),
-        });
+        const firstRefund = await poolProxy
+          .connect(borrower)
+          .refundLoan(tokenId, borrower.address, {
+            value: loanPrice.div(3),
+          });
+
+        await expect(firstRefund)
+          .emit(poolProxy, 'LoanPartiallyRefunded')
+          .withArgs(
+            ethers.utils.getAddress(collectionAddress),
+            tokenId,
+            ethers.utils.getAddress(borrower.address),
+            loanPrice.div(3),
+            loanPrice.sub(loanPrice.div(3)),
+          );
 
         // advance blockchain 29 days
         await ethers.provider.send('evm_increaseTime', [29 * 24 * 60 * 60]);
@@ -1118,9 +1130,20 @@ describe('Pool', async () => {
         await ethers.provider.send('evm_mine', []);
 
         // refund loan of loanPrice / 3 (1/3 of loan price)
-        await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
-          value: loanPrice.div(3),
-        });
+        const finalRefund = await poolProxy
+          .connect(borrower)
+          .refundLoan(tokenId, borrower.address, {
+            value: loanPrice.div(3),
+          });
+
+        await expect(finalRefund)
+          .emit(poolProxy, 'LoanEntirelyRefunded')
+          .withArgs(
+            ethers.utils.getAddress(collectionAddress),
+            tokenId,
+            ethers.utils.getAddress(borrower.address),
+            priceWithInterest,
+          );
 
         // verify that loan is paid back
         const loan = await poolProxy.retrieveLoan(tokenId, borrower.address);
@@ -1885,8 +1908,21 @@ describe('Pool', async () => {
           await ethers.provider.send('evm_increaseTime', [71 * 24 * 60 * 60]);
           await ethers.provider.send('evm_mine', []);
 
+          const liquidator = await poolProxy.liquidator();
+
           // liquidate NFT
-          await poolProxy.connect(borrower).liquidateLoan(tokenId, borrower.address);
+          const liquidtateTx = await poolProxy
+            .connect(borrower)
+            .liquidateLoan(tokenId, borrower.address);
+          await expect(liquidtateTx)
+            .to.emit(poolProxy, 'LoanLiquidated')
+            .withArgs(
+              ethers.utils.getAddress(collectionAddress),
+              tokenId,
+              ethers.utils.getAddress(borrower.address),
+              ethers.utils.getAddress(liquidator),
+              priceWithInterest,
+            );
 
           // advance blockchain 70 days so we can liquidate the loan for a 0 price
           await ethers.provider.send('evm_increaseTime', [70 * 24 * 60 * 60]);

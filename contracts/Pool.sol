@@ -33,26 +33,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     /**
-     * @dev Emitted when a NFT is bought.
-     * @param collectionAddress The address of the NFT collection.
-     * @param tokenId The ID of the NFT.
-     * @param priceOfNFT The price of the NFT.
-     * @param priceIncludingFees The price of the NFT including fees.
-     * @param settlementManager The address of the settlement manager.
-     * @param loanTimestamp The timestamp of the loan.
-     * @param loanDuration The duration of the loan.
-     */
-    event NFTBought(
-        address indexed collectionAddress,
-        uint256 indexed tokenId,
-        uint256 priceOfNFT,
-        uint256 priceIncludingFees,
-        address settlementManager,
-        uint256 loanTimestamp,
-        uint256 loanDuration
-    );
-
-    /**
      * @dev Emitted when a loan is entirely refunded.
      * @param token The address of the NFT collection.
      * @param tokenId The ID of the NFT.
@@ -104,6 +84,28 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         address indexed borrower,
         uint256 amountPaid,
         uint256 amountRemaining
+    );
+
+    /**
+     * @dev Emitted when a NFT is bought.
+     * @param collectionAddress The address of the NFT collection.
+     * @param tokenId The ID of the NFT.
+     * @param priceOfNFT The price of the NFT.
+     * @param borrower The address of the borrower.
+     * @param priceIncludingFees The price of the NFT including fees.
+     * @param settlementManager The address of the settlement manager.
+     * @param loanTimestamp The timestamp of the loan.
+     * @param loanDuration The duration of the loan.
+     */
+    event LoanStarted(
+        address indexed collectionAddress,
+        uint256 indexed tokenId,
+        address indexed borrower,
+        uint256 priceOfNFT,
+        uint256 priceIncludingFees,
+        address settlementManager,
+        uint256 loanTimestamp,
+        uint256 loanDuration
     );
 
     /**************************************************************************/
@@ -299,9 +301,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* Mint wrapped NFT */
         ICollateralWrapper(wrappedNFT).mint(tokenId_, msg.sender);
 
-        emit NFTBought(
+        emit LoanStarted(
             collectionAddress_,
             tokenId_,
+            msg.sender,
             priceOfNFT_,
             priceIncludingFees_,
             settlementManager_,
