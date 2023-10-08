@@ -1495,14 +1495,64 @@ describe('Pool', async () => {
         const lender1SharesBefore = await poolProxy.balanceOf(lender1.address);
         expect(lender1SharesBefore).to.be.equal(0);
 
+        const lendingValue = ethers.utils.parseEther('100');
+
+        const lendTx = await poolProxy
+          .connect(lender1)
+          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            value: lendingValue,
+          });
+
+        const previewDepositShare = await poolProxy.previewDeposit(lendingValue);
+
+        await expect(lendTx)
+          .to.emit(poolProxy, 'Deposit')
+          .withArgs(lender1.address, lender1.address, lendingValue, previewDepositShare);
+
+        const lender1SharesAfter = await poolProxy.balanceOf(lender1.address);
+        expect(lender1SharesAfter).to.be.equal(previewDepositShare);
+      });
+
+      it.only('should be able to redeem (after vesting time)', async () => {
+        const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
+
+        const depositAmount = ethers.utils.parseEther('100');
         await poolProxy
           .connect(lender1)
           .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
-            value: ethers.utils.parseEther('100'),
+            value: depositAmount,
           });
 
+        const twelveHoursInSeconds = 12 * 60 * 60;
+        const vestingTime = twelveHoursInSeconds * initialDailyInterestRateInBps;
+
+        // advance blockchain to vesting time
+        await ethers.provider.send('evm_increaseTime', [vestingTime]);
+        await ethers.provider.send('evm_mine', []);
+
+        const lender1BalanceBeforeWithdraw = await ethers.provider.getBalance(lender1.address);
+
+        const lender1Shares = await poolProxy.balanceOf(lender1.address);
+        const lender1Assets = await poolProxy.previewRedeem(lender1Shares);
+
+        const withdrawTx = await poolProxy
+          .connect(lender1)
+          .redeem(lender1Shares, lender1.address, lender1.address);
+        expect(withdrawTx)
+          .to.emit(poolProxy, 'Withdraw')
+          .withArgs(
+            lender1.address,
+            lender1.address,
+            lender1.address,
+            lender1Assets,
+            lender1Shares,
+          );
+
         const lender1SharesAfter = await poolProxy.balanceOf(lender1.address);
-        expect(lender1SharesAfter).to.not.be.equal(0);
+        expect(lender1SharesAfter).to.be.equal(0);
+
+        const lender1BalanceAfterWithdraw = await ethers.provider.getBalance(lender1.address);
+        expect(lender1BalanceAfterWithdraw).to.be.greaterThan(lender1BalanceBeforeWithdraw);
       });
 
       it('should be able to withdraw (after vesting time)', async () => {
@@ -1524,9 +1574,22 @@ describe('Pool', async () => {
 
         const lender1BalanceBeforeWithdraw = await ethers.provider.getBalance(lender1.address);
 
+        const lender1Assets = await poolProxy.maxWithdrawAvailable(lender1.address);
         const lender1Shares = await poolProxy.balanceOf(lender1.address);
 
-        await poolProxy.connect(lender1).redeem(lender1Shares, lender1.address, lender1.address);
+        const withdrawTx = await poolProxy
+          .connect(lender1)
+          .withdraw(lender1Assets, lender1.address, lender1.address);
+
+        expect(withdrawTx)
+          .to.emit(poolProxy, 'Withdraw')
+          .withArgs(
+            lender1.address,
+            lender1.address,
+            lender1.address,
+            lender1Assets,
+            lender1Shares,
+          );
 
         const lender1SharesAfter = await poolProxy.balanceOf(lender1.address);
         expect(lender1SharesAfter).to.be.equal(0);
@@ -1935,7 +1998,10 @@ describe('Pool', async () => {
           expect(liquidatingPrice).to.be.equal(0);
 
           // buy NFT for 0
-          await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId);
+          const buyTx = await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId);
+          expect(buyTx)
+            .emit(poolProxy, 'LoanLiquidationRefund')
+            .withArgs(ethers.utils.getAddress(collectionAddress), tokenId, 0);
 
           const redeemValueAfter = await poolProxy.previewRedeem(balanceOfLpTokens);
           expect(redeemValueAfter).to.be.lessThan(redeemValueBefore);
@@ -2042,9 +2108,12 @@ describe('Pool', async () => {
           );
 
           // buy NFT for 0
-          await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId, {
+          const buyTx = await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId, {
             value: liquidatingPrice,
           });
+          expect(buyTx)
+            .emit(poolProxy, 'LoanLiquidationRefund')
+            .withArgs(ethers.utils.getAddress(collectionAddress), tokenId, liquidatingPrice);
 
           const redeemValueAfter = await poolProxy.previewRedeem(balanceOfLpTokens);
           expect(redeemValueAfter).to.be.greaterThan(redeemValueBefore);
