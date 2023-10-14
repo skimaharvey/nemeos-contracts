@@ -33,6 +33,8 @@ describe('Pool', async () => {
     const ethWhale = '0xda9dfa130df4de4673b89022ee50ff26f6ea73cf';
     const impersonatedWhaleSigner = await ethers.getImpersonatedSigner(ethWhale);
 
+    const minimalDepositAtCreation = ethers.utils.parseEther('1');
+
     const collectionAddress =
       OfferData.fulfillment_data.transaction.input_data.parameters.offerToken;
 
@@ -56,7 +58,11 @@ describe('Pool', async () => {
     );
     await proxy.deployed();
     const poolFactoryProxy = PoolFactory.attach(proxy.address);
-    await poolFactoryProxy.initialize(poolFactoryOwner.address, protocolFeeCollector.address);
+    await poolFactoryProxy.initialize(
+      poolFactoryOwner.address,
+      protocolFeeCollector.address,
+      minimalDepositAtCreation,
+    );
 
     // deploy liquidator
     const randomLiquidatorAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
@@ -118,7 +124,7 @@ describe('Pool', async () => {
       initialDeposit,
       nftFilterAddress,
       randomLiquidatorAddress,
-      { value: initialDeposit },
+      { value: minimalDepositAtCreation },
     );
 
     await poolFactoryProxy.createPool(
@@ -129,7 +135,7 @@ describe('Pool', async () => {
       initialDeposit,
       nftFilterAddress,
       dutchAuctionLiquidatorFactory.address,
-      { value: initialDeposit },
+      { value: minimalDepositAtCreation },
     );
 
     const poolProxy: Pool = Pool.attach(poolProxyAddress);

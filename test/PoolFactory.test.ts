@@ -172,11 +172,15 @@ describe('PoolFactory', async () => {
   it('should allow the owner to update allowed NFT filters', async () => {
     const { poolFactoryProxy, poolFactoryOwner, randomNFTFilterAddress } = await buildTestContext();
     const newAllowedNFTFilters = [
-      randomNFTFilterAddress,
-      ethers.utils.hexlify(ethers.utils.randomBytes(20)),
+      ethers.utils.getAddress(randomNFTFilterAddress),
+      ethers.utils.getAddress(ethers.utils.hexlify(ethers.utils.randomBytes(20))),
     ];
 
-    await poolFactoryProxy.connect(poolFactoryOwner).updateAllowedNFTFilters(newAllowedNFTFilters);
+    await expect(
+      poolFactoryProxy.connect(poolFactoryOwner).updateAllowedNFTFilters(newAllowedNFTFilters),
+    )
+      .to.emit(poolFactoryProxy, 'UpdateAllowedNFTFilters')
+      .withArgs(newAllowedNFTFilters);
 
     const updatedAllowedNFTFilters = await poolFactoryProxy.getAllowedNFTFilters();
     expect(updatedAllowedNFTFilters).to.deep.equal(newAllowedNFTFilters);
@@ -214,6 +218,20 @@ describe('PoolFactory', async () => {
 
     const updatedPoolImplementation = await poolFactoryProxy.poolImplementation();
     expect(updatedPoolImplementation).to.deep.equal(newPoolImplementation);
+  });
+
+  it('should allow the owner to update the minimal deposit', async () => {
+    const { poolFactoryProxy, poolFactoryOwner } = await buildTestContext();
+    const newMinimalDeposit = ethers.utils.parseEther('2');
+
+    await expect(
+      poolFactoryProxy.connect(poolFactoryOwner).updateMinimalDepositAtCreation(newMinimalDeposit),
+    )
+      .to.emit(poolFactoryProxy, 'UpdateMinimalDepositAtCreation')
+      .withArgs(newMinimalDeposit);
+
+    const updatedMinimalDeposit = await poolFactoryProxy.minimalDepositAtCreation();
+    expect(updatedMinimalDeposit).to.deep.equal(newMinimalDeposit);
   });
 
   it('should not allow the same collection and LTV to be used for creating multiple pools', async () => {
@@ -443,4 +461,18 @@ describe('PoolFactory', async () => {
       ),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
+
+  it('should not allow non owner to update the minimal deposit', async () => {
+    const { poolFactoryProxy } = await buildTestContext();
+    const newMinimalDeposit = ethers.utils.parseEther('2');
+
+    const [, nonOwner] = await ethers.getSigners();
+
+    // Attempt to update the minimal deposit by a non-owner account
+    await expect(
+      poolFactoryProxy.connect(nonOwner).updateMinimalDepositAtCreation(newMinimalDeposit),
+    ).to.be.revertedWith('Ownable: caller is not the owner');
+  });
+
+  // TODO: Add test for upgradeToAndCall
 });

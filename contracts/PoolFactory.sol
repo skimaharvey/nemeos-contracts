@@ -49,10 +49,22 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     event UpdateAllowedLTVs(uint256[] allowdLTVs);
 
     /**
+     * @notice Emitted when the allowed NFT filters are updated
+     * @param allowedNFTFilters New allowed NFT filters
+     */
+    event UpdateAllowedNFTFilters(address[] allowedNFTFilters);
+
+    /**
      * @notice Emitted when the collateral factory is updated
      * @param collateralFactory New collateral factory address
      */
     event UpdateCollateralFactory(address indexed collateralFactory);
+
+    /**
+     * @notice Emitted when the minimal deposit at creation is updated
+     * @param minimalDepositAtCreation New minimal deposit at creation
+     */
+    event UpdateMinimalDepositAtCreation(uint256 minimalDepositAtCreation);
 
     /**
      * @notice Emitted when the pool implementation is updated
@@ -316,6 +328,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
 
     function updateAllowedNFTFilters(address[] calldata allowedNFTFilters_) external onlyOwner {
         allowedNFTFilters = allowedNFTFilters_;
+
+        emit UpdateAllowedNFTFilters(allowedNFTFilters_);
     }
 
     function updateProtocolFeeCollector(address protocolFeeCollector_) external onlyOwner {
@@ -339,6 +353,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
 
     function updateMinimalDepositAtCreation(uint256 minimalDepositAtCreation_) external onlyOwner {
         minimalDepositAtCreation = minimalDepositAtCreation_;
+
+        emit UpdateMinimalDepositAtCreation(minimalDepositAtCreation_);
     }
 
     /**************************************************************************/
