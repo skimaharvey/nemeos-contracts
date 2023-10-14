@@ -145,7 +145,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     uint256 public constant BASIS_POINTS = 10_000;
 
     // todo: make it updateable by admin
+    /* The maximum daily interest rate */
     uint256 public constant MAX_INTEREST_RATE = 100; // 1% per day
+
+    /* The Version of the contract */
+    string public constant VERSION = "1.0.0";
 
     /* The minimum loan to value ratio */
     uint256 public ltvInBPS;

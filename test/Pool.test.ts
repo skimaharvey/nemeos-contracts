@@ -163,6 +163,12 @@ describe('Pool', async () => {
     };
   };
 
+  it('should have the correct version', async () => {
+    const { poolProxy } = await buildTestContext();
+
+    expect(await poolProxy.VERSION()).to.equal('1.0.0');
+  });
+
   describe('Borrower', async () => {
     describe('Buy NFT', async () => {
       it('should be able to buy NFT from Seaport', async () => {
