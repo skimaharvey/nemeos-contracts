@@ -180,7 +180,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -250,7 +250,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -306,7 +306,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -364,7 +364,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -435,7 +435,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -506,7 +506,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -567,7 +567,7 @@ describe('Pool', async () => {
         const secondDeposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: secondDeposit,
           });
 
@@ -611,7 +611,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -700,7 +700,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -784,7 +784,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -874,7 +874,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -960,7 +960,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -1042,7 +1042,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -1196,7 +1196,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -1275,7 +1275,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -1351,7 +1351,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -1427,7 +1427,7 @@ describe('Pool', async () => {
         const deposit = ethers.utils.parseEther('100');
         await poolProxy
           .connect(impersonatedWhaleSigner)
-          .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
             value: deposit,
           });
 
@@ -1499,7 +1499,7 @@ describe('Pool', async () => {
 
         const lendTx = await poolProxy
           .connect(lender1)
-          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+          .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
             value: lendingValue,
           });
 
@@ -1513,13 +1513,13 @@ describe('Pool', async () => {
         expect(lender1SharesAfter).to.be.equal(previewDepositShare);
       });
 
-      it.only('should be able to redeem (after vesting time)', async () => {
+      it('should be able to redeem (after vesting time)', async () => {
         const { poolProxy, initialDailyInterestRateInBps, lender1 } = await buildTestContext();
 
         const depositAmount = ethers.utils.parseEther('100');
         await poolProxy
           .connect(lender1)
-          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+          .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
             value: depositAmount,
           });
 
@@ -1561,7 +1561,7 @@ describe('Pool', async () => {
         const depositAmount = ethers.utils.parseEther('100');
         await poolProxy
           .connect(lender1)
-          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+          .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
             value: depositAmount,
           });
 
@@ -1604,7 +1604,7 @@ describe('Pool', async () => {
         const depositAmount = ethers.utils.parseEther('100');
         await poolProxy
           .connect(lender1)
-          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+          .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
             value: depositAmount,
           });
 
@@ -1612,7 +1612,7 @@ describe('Pool', async () => {
 
         await poolProxy
           .connect(lender1)
-          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps + 1, {
+          .depositAndVote(lender1.address, initialDailyInterestRateInBps + 1, {
             value: depositAmount,
           });
 
@@ -1627,7 +1627,7 @@ describe('Pool', async () => {
         const depositAmount = ethers.utils.parseEther('100');
         await poolProxy
           .connect(lender1)
-          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+          .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
             value: depositAmount,
           });
 
@@ -1635,7 +1635,7 @@ describe('Pool', async () => {
 
         await poolProxy
           .connect(lender1)
-          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps - 1, {
+          .depositAndVote(lender1.address, initialDailyInterestRateInBps - 1, {
             value: depositAmount,
           });
 
@@ -1658,7 +1658,7 @@ describe('Pool', async () => {
 
         const tx = await poolProxy
           .connect(lender1)
-          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+          .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
             value: depositAmount,
           });
 
@@ -1677,7 +1677,7 @@ describe('Pool', async () => {
         const maxInterestRate = await poolProxy.MAX_INTEREST_RATE();
 
         await expect(
-          poolProxy.connect(lender1).depositNativeTokens(lender1.address, maxInterestRate.add(1), {
+          poolProxy.connect(lender1).depositAndVote(lender1.address, maxInterestRate.add(1), {
             value: depositAmount,
           }),
         ).to.be.revertedWith('Pool: daily interest rate too high');
@@ -1689,7 +1689,7 @@ describe('Pool', async () => {
         const depositAmount = ethers.utils.parseEther('100');
         await poolProxy
           .connect(lender1)
-          .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+          .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
             value: depositAmount,
           });
 
@@ -1715,7 +1715,7 @@ describe('Pool', async () => {
           const depositAmount = ethers.utils.parseEther('100');
           await poolProxy
             .connect(lender1)
-            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
               value: depositAmount,
             });
 
@@ -1723,7 +1723,7 @@ describe('Pool', async () => {
 
           await poolProxy
             .connect(lender2)
-            .depositNativeTokens(lender2.address, initialDailyInterestRateInBps * 2, {
+            .depositAndVote(lender2.address, initialDailyInterestRateInBps * 2, {
               value: depositAmount,
             });
 
@@ -1740,7 +1740,7 @@ describe('Pool', async () => {
 
           await poolProxy
             .connect(lender1)
-            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
               value: depositAmount,
             });
 
@@ -1748,7 +1748,7 @@ describe('Pool', async () => {
 
           await poolProxy
             .connect(lender2)
-            .depositNativeTokens(lender2.address, initialDailyInterestRateInBps * 0.5, {
+            .depositAndVote(lender2.address, initialDailyInterestRateInBps * 0.5, {
               value: depositAmount,
             });
 
@@ -1765,7 +1765,7 @@ describe('Pool', async () => {
 
           await poolProxy
             .connect(lender1)
-            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
               value: depositAmount,
             });
 
@@ -1773,7 +1773,7 @@ describe('Pool', async () => {
 
           await poolProxy
             .connect(lender2)
-            .depositNativeTokens(lender2.address, initialDailyInterestRateInBps * 2, {
+            .depositAndVote(lender2.address, initialDailyInterestRateInBps * 2, {
               value: depositAmount,
             });
 
@@ -1799,7 +1799,7 @@ describe('Pool', async () => {
           const depositAmount = ethers.utils.parseEther('100');
           await poolProxy
             .connect(lender1)
-            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
               value: depositAmount,
             });
 
@@ -1817,7 +1817,7 @@ describe('Pool', async () => {
           const deposit = ethers.utils.parseEther('100');
           await poolProxy
             .connect(impersonatedWhaleSigner)
-            .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
               value: deposit,
             });
 
@@ -1901,7 +1901,7 @@ describe('Pool', async () => {
           const depositAmount = ethers.utils.parseEther('100');
           await poolProxy
             .connect(lender1)
-            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
               value: depositAmount,
             });
 
@@ -1919,7 +1919,7 @@ describe('Pool', async () => {
           const deposit = ethers.utils.parseEther('100');
           await poolProxy
             .connect(impersonatedWhaleSigner)
-            .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
               value: deposit,
             });
 
@@ -2025,7 +2025,7 @@ describe('Pool', async () => {
           const depositAmount = ethers.utils.parseEther('100');
           await poolProxy
             .connect(lender1)
-            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
               value: depositAmount,
             });
 
@@ -2043,7 +2043,7 @@ describe('Pool', async () => {
           const deposit = ethers.utils.parseEther('100');
           await poolProxy
             .connect(impersonatedWhaleSigner)
-            .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
               value: deposit,
             });
 
@@ -2136,7 +2136,7 @@ describe('Pool', async () => {
           const depositAmount = ethers.utils.parseEther('100');
           await poolProxy
             .connect(lender1)
-            .depositNativeTokens(lender1.address, initialDailyInterestRateInBps, {
+            .depositAndVote(lender1.address, initialDailyInterestRateInBps, {
               value: depositAmount,
             });
 
@@ -2154,7 +2154,7 @@ describe('Pool', async () => {
           const deposit = ethers.utils.parseEther('100');
           await poolProxy
             .connect(impersonatedWhaleSigner)
-            .depositNativeTokens(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+            .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
               value: deposit,
             });
 

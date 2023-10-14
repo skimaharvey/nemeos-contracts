@@ -221,6 +221,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         require(NFTFilter_ != address(0), "Pool: NFTFilter is zero address");
         require(protocolFeeCollector_ != address(0), "Pool: protocolFeeCollector is zero address");
         require(ltvInBPS < BASIS_POINTS, "Pool: LTV too high");
+        require(asset_ == address(0), "Pool: asset should be zero address"); // to be removed later when we support non-native tokens
+
         nftCollection = nftCollection_;
         ltvInBPS = loanToValueinBPS_;
         dailyInterestRate = initialDailyInterestRateinBPS_;
@@ -505,15 +507,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 remainingLoanAmount_,
         uint256 loanDurationInDays_
     ) public view returns (uint256, uint256, uint256, uint160) {
-        /* check if pool has enough balance*/
-        if (address(_asset) != address(0)) {
-            require(
-                remainingLoanAmount_ <= _asset.balanceOf(address(this)),
-                "Pool: not enough assets"
-            );
-        } else {
-            require(remainingLoanAmount_ <= address(this).balance, "Pool: not enough assets");
-        }
+        require(remainingLoanAmount_ <= address(this).balance, "Pool: not enough assets");
 
         /* number of paiements installments */
         uint256 numberOfInstallments = loanDurationInDays_ % (MAX_LOAN_REFUND_INTERVAL / 1 days) ==
@@ -625,18 +619,15 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* Lender API */
     /**************************************************************************/
 
-    /** @dev Was created in order to deposit native token into the pool when the asset address is address(0).
+    /** @dev Was created in order to deposit native token into the pool and vote for a daily interest rate.
      * @param receiver_ The address of the receiver.
      * @param dailyInterestRate_ The daily interest rate requested by the lender.
      * @return shares The number of shares minted.
      */
-    function depositNativeTokens(
+    function depositAndVote(
         address receiver_,
         uint256 dailyInterestRate_
     ) external payable returns (uint256) {
-        /* check that asset is ETH or else use the the depositERC20 function */
-        require(address(_asset) == address(0), "Pool: asset is not ETH");
-
         /* check that msg.value is not 0 */
         require(msg.value > 0, "Pool: msg.value is 0");
 
@@ -709,43 +700,18 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     /** @dev See {IERC4626-deposit}.
-     * This function is still open to non-ETH deposits and users that dont want vote for the daily interest rate.
+     * This function is overriden to prevent deposit of non-native tokens.
      */
-    function deposit(uint256 assets, address receiver) public override returns (uint256) {
-        /* check that asset is not ETH or else use the the depositNativeTokens function */
-        require(address(_asset) != address(0), "Pool: asset is ETH");
-
-        require(assets <= maxDeposit(receiver), "ERC4626: deposit more than max");
-
-        uint256 shares = previewDeposit(assets);
-
-        /* update the daily interest rate with current one */
-        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
-
-        _deposit(_msgSender(), receiver, assets, shares);
-
-        return shares;
+    function deposit(uint256, address) public override returns (uint256) {
+        revert("only native tokens accepted");
     }
 
     /** @dev See {IERC4626-mint}.
      *
-     * As opposed to {deposit}, minting is allowed even if the vault is in a state where the price of a share is zero.
-     * In this case, the shares will be minted without requiring any assets to be deposited.
+     * This function is overriden to prevent minting of non-native tokens.
      */
-    function mint(uint256 shares, address receiver) public virtual override returns (uint256) {
-        /* check that asset is not ETH or else use the the depositNativeTokens function */
-        require(address(_asset) != address(0), "Pool: asset is ETH");
-
-        require(shares <= maxMint(receiver), "ERC4626: mint more than max");
-
-        uint256 assets = previewMint(shares);
-
-        // /* update the daily interest rate with current one */
-        _updateDailyInterestRateOnDeposit(dailyInterestRate, shares);
-
-        _deposit(_msgSender(), receiver, assets, shares);
-
-        return assets;
+    function mint(uint256, address) public virtual override returns (uint256) {
+        revert("only native tokens accepted");
     }
 
     /** @dev See {IERC4626-redeem}.
@@ -802,11 +768,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
      * @return The total value of the assets held by the pool at the moment.
      */
     function totalAssetsInPool() public view returns (uint256) {
-        if (address(_asset) == address(0)) {
-            return address(this).balance;
-        } else {
-            return _asset.balanceOf(address(this));
-        }
+        return address(this).balance;
     }
 
     function totalAssets() public view override returns (uint256) {
@@ -842,19 +804,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 assets,
         uint256 shares
     ) internal override {
-        if (address(_asset) != address(0)) {
-            /* safety checks but should not be possible*/
-            require(msg.value == 0, "Pool: ETH deposit amount mismatch");
-            // If _asset is ERC777, `transferFrom` can trigger a reentrancy BEFORE the transfer happens through the
-            // `tokensToSend` hook. On the other hand, the `tokenReceived` hook, that is triggered after the transfer,
-            // calls the vault, which is assumed not malicious.
-            //
-            // Conclusion: we need to do the transfer before we mint so that any reentrancy would happen before the
-            // assets are transferred and before the shares are minted, which is a valid state.
-            // slither-disable-next-line reentrancy-no-eth
-            SafeERC20Upgradeable.safeTransferFrom(_asset, caller, address(this), assets);
-        }
-
         _mint(receiver, shares);
         emit Deposit(caller, receiver, assets, shares);
     }
@@ -888,17 +837,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         // Conclusion: we need to do the transfer after the burn so that any reentrancy would happen after the
         // shares are burned and after the assets are transferred, which is a valid state.
         _burn(owner, shares);
-        if (address(_asset) == address(0)) {
-            require(receiver == owner, "Pool: receiver is not owner");
-            // slither-disable-next-line reentrancy-no-eth
-            payable(receiver).transfer(assets);
-        } else {
-            if (caller != owner) {
-                _spendAllowance(owner, caller, shares);
-            }
-            // slither-disable-next-line reentrancy-no-eth
-            SafeERC20Upgradeable.safeTransfer(_asset, receiver, assets);
-        }
+
+        require(receiver == owner, "Pool: receiver is not owner");
+        // slither-disable-next-line reentrancy-no-eth
+        payable(receiver).transfer(assets);
+
         emit Withdraw(caller, receiver, owner, assets, shares);
     }
 

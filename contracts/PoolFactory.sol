@@ -205,7 +205,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
                 msg.value > 0 && msg.value == initialDeposit_,
                 "PoolFactory: ETH deposit required to be equal to initial deposit"
             );
-            IPool(poolInstance).depositNativeTokens{value: msg.value}(
+            IPool(poolInstance).depositAndVote{value: msg.value}(
                 msg.sender,
                 initialDailyInterestRateInBPS_
             );

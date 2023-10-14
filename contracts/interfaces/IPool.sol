@@ -8,7 +8,7 @@ interface IPool {
         uint256 dailyInterestRate_
     ) external payable returns (uint256);
 
-    function depositNativeTokens(
+    function depositAndVote(
         address receiver,
         uint256 dailyInterestRate_
     ) external payable returns (uint256);

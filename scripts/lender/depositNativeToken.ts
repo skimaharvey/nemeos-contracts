@@ -8,7 +8,7 @@ async function main() {
 
   const pool = await ethers.getContractAt('Pool', POOL_ADDRESS);
 
-  const tx = await pool.depositNativeTokens(signer.address, DAILY_INTEREST_BPS, {
+  const tx = await pool.depositAndVote(signer.address, DAILY_INTEREST_BPS, {
     value: ethers.utils.parseEther('0.1'),
   });
 
