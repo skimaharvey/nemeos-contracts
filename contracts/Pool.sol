@@ -108,6 +108,18 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 loanDuration
     );
 
+    /**
+     * @dev Emitted when the vesting time per basis point is updated.
+     * @param newVestingTimePerBasisPoint The new vesting time per basis point.
+     */
+    event UpdateVestingTimePerBasisPoint(uint256 newVestingTimePerBasisPoint);
+
+    /**
+     * @dev Emitted when the daily interest rate is updated.
+     * @param newMaxDailyInterestRate The new daily interest rate.
+     */
+    event UpdateMaxDailyInterestRate(uint256 newMaxDailyInterestRate);
+
     /**************************************************************************/
     /* Structs */
     /**************************************************************************/
@@ -144,13 +156,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
     uint256 public constant BASIS_POINTS = 10_000;
 
-    // todo: make it updateable by admin
-    /* The maximum daily interest rate */
-    uint256 public constant MAX_INTEREST_RATE = 100; // 1% per day
-
-    /* The Version of the contract */
-    string public constant VERSION = "1.0.0";
-
     /* The minimum loan to value ratio */
     uint256 public ltvInBPS;
 
@@ -173,6 +178,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
      */
     address public wrappedNFT;
 
+    /* The Version of the contract */
+    string public constant VERSION = "1.0.0";
+
     /**************************************************************************/
     /* State */
     /**************************************************************************/
@@ -182,6 +190,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
     /* The daily interest rate */
     uint256 public dailyInterestRate;
+
+    /* The maximum daily interest rate */
+    uint256 public maxDailyInterestRate = 100; // 1% per day
 
     /* The daily interest rate per lender */
     mapping(address => uint256) public dailyInterestRatePerLender;
@@ -204,6 +215,15 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
     constructor() {
         _disableInitializers();
+    }
+
+    /**************************************************************************/
+    /* Modifiers */
+    /**************************************************************************/
+
+    modifier onlyProtocolFeeCollector() {
+        require(msg.sender == protocolFeeCollector, "Pool: caller is not protocol admin");
+        _;
     }
 
     /**************************************************************************/
@@ -636,7 +656,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         require(msg.value > 0, "Pool: msg.value is 0");
 
         /* check that max daily interest is respected */
-        require(dailyInterestRate_ <= MAX_INTEREST_RATE, "Pool: daily interest rate too high");
+        require(dailyInterestRate_ <= maxDailyInterestRate, "Pool: daily interest rate too high");
 
         require(msg.value <= maxDeposit(receiver_), "ERC4626: deposit more than max");
 
@@ -853,12 +873,19 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* Admin API */
     /**************************************************************************/
 
-    function updateVestingTimePerBasisPoint(uint256 vestingTimePerBasisPoint_) external {
-        require(
-            msg.sender == protocolFeeCollector,
-            "Pool: Only protocol fee collector can update vestingTimePerBasisPoint"
-        );
+    function updateVestingTimePerBasisPoint(
+        uint256 vestingTimePerBasisPoint_
+    ) external onlyProtocolFeeCollector {
         vestingTimePerBasisPoint = vestingTimePerBasisPoint_;
+
+        emit UpdateVestingTimePerBasisPoint(vestingTimePerBasisPoint_);
+    }
+
+    function updateMaxDailyInterestRate(uint256 maxDailyInterestRate_) external {
+        require(maxDailyInterestRate_ <= BASIS_POINTS, "Pool: maxDailyInterestRate too high");
+        maxDailyInterestRate = maxDailyInterestRate_;
+
+        emit UpdateMaxDailyInterestRate(maxDailyInterestRate_);
     }
 
     // TODO: add pause/unpause logic
