@@ -82,7 +82,7 @@ describe('PoolFactory', async () => {
 
     expect(await poolFactoryProxy.owner()).to.equal(poolFactoryOwner.address);
   });
-  it('should create a pool', async () => {
+  it('should create a pool if creator is owner', async () => {
     const {
       poolFactoryProxy,
       initialDailyInterestRateInBps,
@@ -123,7 +123,7 @@ describe('PoolFactory', async () => {
     expect(await poolProxy.NFTFilter()).to.deep.equal(randomNFTFilterAddress);
   });
 
-  it('should create a new pool and emit PoolCreated event', async () => {
+  it('should create a new pool and emit PoolCreated event if creator is owner', async () => {
     const { poolFactoryProxy, randomCollectionAddress, loanToValueInBps, randomNFTFilterAddress } =
       await buildTestContext();
     const initialDeposit = ethers.utils.parseEther('1');
@@ -157,6 +157,36 @@ describe('PoolFactory', async () => {
     expect(receipt)
       .to.emit(poolFactoryProxy, 'PoolCreated')
       .withArgs(randomCollectionAddress, loanToValueInBps, futurePoolAddress, deployer.address);
+  });
+
+  it('should not create a pool if creator is not owner', async () => {
+    const {
+      poolFactoryProxy,
+      initialDailyInterestRateInBps,
+      loanToValueInBps,
+      randomCollectionAddress,
+      randomLiquidatorAddress,
+      randomNFTFilterAddress,
+    } = await buildTestContext();
+
+    const initialDeposit = ethers.utils.parseEther('1');
+
+    const [, nonOwner] = await ethers.getSigners();
+
+    await expect(
+      poolFactoryProxy
+        .connect(nonOwner)
+        .createPool(
+          randomCollectionAddress,
+          ethers.constants.AddressZero,
+          loanToValueInBps,
+          initialDailyInterestRateInBps,
+          initialDeposit,
+          randomNFTFilterAddress,
+          randomLiquidatorAddress,
+          { value: initialDeposit },
+        ),
+    ).to.be.revertedWith('Ownable: caller is not the owner');
   });
 
   it('should allow the owner to update allowed LTVs', async () => {

@@ -17,6 +17,8 @@ import {
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
+// todo: restrict liquidator?
+
 /**
  * @title PoolFactory
  * @author Nemeos
@@ -177,7 +179,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         uint256 initialDeposit_,
         address nftFilter_,
         address liquidator_
-    ) external payable returns (address) {
+    ) external payable onlyOwner returns (address) {
         address collateralFactoryAddress = collateralFactory;
 
         /* Check that collateral factory is set */
