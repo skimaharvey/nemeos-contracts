@@ -13,6 +13,7 @@ describe('PoolFactory', async () => {
 
     const loanToValueInBps = 3_000;
     const initialDailyInterestRateInBps = 50;
+    const minimalDepositInWei = ethers.utils.parseEther('1');
 
     // Deploy the implementation contract
     const PoolFactory = await ethers.getContractFactory('PoolFactory');
@@ -30,7 +31,11 @@ describe('PoolFactory', async () => {
     );
     await proxy.deployed();
     const poolFactoryProxy = PoolFactory.attach(proxy.address);
-    await poolFactoryProxy.initialize(poolFactoryOwner.address, protocolFeeCollector.address);
+    await poolFactoryProxy.initialize(
+      poolFactoryOwner.address,
+      protocolFeeCollector.address,
+      minimalDepositInWei,
+    );
 
     // deploy Collateral Factory
     const CollateralFactory = await ethers.getContractFactory('CollateralFactory');
@@ -65,6 +70,7 @@ describe('PoolFactory', async () => {
       randomLiquidatorAddress,
       randomNFTFilterAddress,
       collateralFactory,
+      minimalDepositInWei,
     };
   };
   it('should deploy PoolFactory', async () => {
@@ -115,5 +121,326 @@ describe('PoolFactory', async () => {
     expect(await poolProxy.liquidator()).to.deep.equal(randomLiquidatorAddress);
     expect(await poolProxy.nftCollection()).to.deep.equal(randomCollectionAddress);
     expect(await poolProxy.NFTFilter()).to.deep.equal(randomNFTFilterAddress);
+  });
+
+  it('should create a new pool and emit PoolCreated event', async () => {
+    const { poolFactoryProxy, randomCollectionAddress, loanToValueInBps, randomNFTFilterAddress } =
+      await buildTestContext();
+    const initialDeposit = ethers.utils.parseEther('1');
+
+    const [deployer] = await ethers.getSigners();
+
+    const futurePoolAddress = await poolFactoryProxy.connect(deployer).callStatic.createPool(
+      randomCollectionAddress,
+      ethers.constants.AddressZero,
+      loanToValueInBps,
+      50, // initialDailyInterestRateInBps
+      initialDeposit,
+      randomNFTFilterAddress,
+      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      { value: initialDeposit },
+    );
+
+    const createPoolTx = await poolFactoryProxy.connect(deployer).createPool(
+      randomCollectionAddress,
+      ethers.constants.AddressZero,
+      loanToValueInBps,
+      50, // initialDailyInterestRateInBps
+      initialDeposit,
+      randomNFTFilterAddress,
+      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      { value: initialDeposit },
+    );
+
+    const receipt = await createPoolTx.wait();
+
+    expect(receipt)
+      .to.emit(poolFactoryProxy, 'PoolCreated')
+      .withArgs(randomCollectionAddress, loanToValueInBps, futurePoolAddress, deployer.address);
+  });
+
+  it('should allow the owner to update allowed LTVs', async () => {
+    const { poolFactoryProxy, poolFactoryOwner } = await buildTestContext();
+    const newAllowedLTVs = [4000, 5000, 6000];
+
+    await poolFactoryProxy.connect(poolFactoryOwner).updateAllowedLTVs(newAllowedLTVs);
+
+    const updatedAllowedLTVs = await poolFactoryProxy.getallowdLTVss();
+    expect(updatedAllowedLTVs).to.deep.equal(newAllowedLTVs);
+  });
+
+  it('should allow the owner to update allowed NFT filters', async () => {
+    const { poolFactoryProxy, poolFactoryOwner, randomNFTFilterAddress } = await buildTestContext();
+    const newAllowedNFTFilters = [
+      randomNFTFilterAddress,
+      ethers.utils.hexlify(ethers.utils.randomBytes(20)),
+    ];
+
+    await poolFactoryProxy.connect(poolFactoryOwner).updateAllowedNFTFilters(newAllowedNFTFilters);
+
+    const updatedAllowedNFTFilters = await poolFactoryProxy.getAllowedNFTFilters();
+    expect(updatedAllowedNFTFilters).to.deep.equal(newAllowedNFTFilters);
+  });
+
+  it('should allow the owner to update the protocol fee collector', async () => {
+    const { poolFactoryProxy, poolFactoryOwner } = await buildTestContext();
+    const newProtocolFeeCollector = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+
+    await poolFactoryProxy
+      .connect(poolFactoryOwner)
+      .updateProtocolFeeCollector(newProtocolFeeCollector);
+
+    const updatedProtocolFeeCollector = await poolFactoryProxy.protocolFeeCollector();
+    expect(updatedProtocolFeeCollector).to.deep.equal(newProtocolFeeCollector);
+  });
+
+  it('should allow the owner to update the collateral factory', async () => {
+    const { poolFactoryProxy, poolFactoryOwner } = await buildTestContext();
+    const newCollateralFactory = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+
+    await poolFactoryProxy.connect(poolFactoryOwner).updateCollateralFactory(newCollateralFactory);
+
+    const updatedCollateralFactory = await poolFactoryProxy.collateralFactory();
+    expect(updatedCollateralFactory).to.deep.equal(newCollateralFactory);
+  });
+
+  it('should allow the owner to update the pool implementation', async () => {
+    const { poolFactoryProxy, poolFactoryOwner } = await buildTestContext();
+    const newPoolImplementation = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+
+    await poolFactoryProxy
+      .connect(poolFactoryOwner)
+      .updatePoolImplementation(newPoolImplementation);
+
+    const updatedPoolImplementation = await poolFactoryProxy.poolImplementation();
+    expect(updatedPoolImplementation).to.deep.equal(newPoolImplementation);
+  });
+
+  it('should not allow the same collection and LTV to be used for creating multiple pools', async () => {
+    const { poolFactoryProxy, randomCollectionAddress, loanToValueInBps, randomNFTFilterAddress } =
+      await buildTestContext();
+    const initialDeposit = ethers.utils.parseEther('1');
+
+    // Create the first pool
+    await poolFactoryProxy.createPool(
+      randomCollectionAddress,
+      ethers.constants.AddressZero,
+      loanToValueInBps,
+      50, // initialDailyInterestRateInBps
+      initialDeposit,
+      randomNFTFilterAddress,
+      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      { value: initialDeposit },
+    );
+
+    // Attempt to create another pool with the same collection and LTV
+    await expect(
+      poolFactoryProxy.createPool(
+        randomCollectionAddress,
+        ethers.constants.AddressZero,
+        loanToValueInBps,
+        50, // initialDailyInterestRateInBps
+        initialDeposit,
+        randomNFTFilterAddress,
+        ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+        { value: initialDeposit },
+      ),
+    ).to.be.revertedWith('PoolFactory: Pool already exists');
+  });
+
+  it('should not allow a non-owner to update allowed LTVs', async () => {
+    const { poolFactoryProxy } = await buildTestContext();
+    const newAllowedLTVs = [4000, 5000, 6000];
+
+    const [, nonOwner] = await ethers.getSigners();
+
+    // Attempt to update allowed LTVs by a non-owner account
+    await expect(
+      poolFactoryProxy.connect(nonOwner).updateAllowedLTVs(newAllowedLTVs),
+    ).to.be.revertedWith('Ownable: caller is not the owner');
+  });
+
+  it('should not allow a non-owner to update allowed NFT filters', async () => {
+    const { poolFactoryProxy, randomNFTFilterAddress } = await buildTestContext();
+    const newAllowedNFTFilters = [
+      randomNFTFilterAddress,
+      ethers.utils.hexlify(ethers.utils.randomBytes(20)),
+    ];
+
+    const [, nonOwner] = await ethers.getSigners();
+
+    // Attempt to update allowed NFT filters by a non-owner account
+    await expect(
+      poolFactoryProxy.connect(nonOwner).updateAllowedNFTFilters(newAllowedNFTFilters),
+    ).to.be.revertedWith('Ownable: caller is not the owner');
+  });
+
+  it('should not allow a non-owner to update the protocol fee collector', async () => {
+    const { poolFactoryProxy } = await buildTestContext();
+    const newProtocolFeeCollector = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+
+    const [, nonOwner] = await ethers.getSigners();
+
+    // Attempt to update the protocol fee collector by a non-owner account
+    await expect(
+      poolFactoryProxy.connect(nonOwner).updateProtocolFeeCollector(newProtocolFeeCollector),
+    ).to.be.revertedWith('Ownable: caller is not the owner');
+  });
+
+  it('should not allow a non-owner to update the collateral factory', async () => {
+    const { poolFactoryProxy } = await buildTestContext();
+    const newCollateralFactory = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+    const [, nonOwner] = await ethers.getSigners();
+    // Attempt to update the collateral factory by a non-owner account
+    await expect(
+      poolFactoryProxy.connect(nonOwner).updateCollateralFactory(newCollateralFactory),
+    ).to.be.revertedWith('Ownable: caller is not the owner');
+  });
+
+  it('should not allow a non-owner to update the pool implementation', async () => {
+    const { poolFactoryProxy } = await buildTestContext();
+    const newPoolImplementation = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+    const [, nonOwner] = await ethers.getSigners();
+
+    // Attempt to update the pool implementation by a non-owner account
+    await expect(
+      poolFactoryProxy.connect(nonOwner).updatePoolImplementation(newPoolImplementation),
+    ).to.be.revertedWith('Ownable: caller is not the owner');
+  });
+
+  it('should not allow creating a pool with an unsupported NFT filter', async () => {
+    const { poolFactoryProxy, randomCollectionAddress, loanToValueInBps } =
+      await buildTestContext();
+    const initialDeposit = ethers.utils.parseEther('1');
+    const unsupportedNFTFilter = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+
+    // Attempt to create a pool with an unsupported NFT filter
+    await expect(
+      poolFactoryProxy.createPool(
+        randomCollectionAddress,
+        ethers.constants.AddressZero,
+        loanToValueInBps,
+        50, // initialDailyInterestRateInBps
+        initialDeposit,
+        unsupportedNFTFilter, // unsupported NFT filter
+        ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+        { value: initialDeposit },
+      ),
+    ).to.be.revertedWith('PoolFactory: NFT filter not allowed');
+  });
+
+  it('should not allow creating a pool with insufficient initial ETH deposit', async () => {
+    const {
+      poolFactoryProxy,
+      randomCollectionAddress,
+      loanToValueInBps,
+      randomNFTFilterAddress,
+      minimalDepositInWei,
+    } = await buildTestContext();
+    const initialDeposit = minimalDepositInWei.sub(1); // Less than required
+
+    // Attempt to create a pool with insufficient initial ETH deposit
+    await expect(
+      poolFactoryProxy.createPool(
+        randomCollectionAddress,
+        ethers.constants.AddressZero,
+        loanToValueInBps,
+        50, // initialDailyInterestRateInBps
+        initialDeposit,
+        randomNFTFilterAddress,
+        ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+        { value: initialDeposit },
+      ),
+    ).to.be.revertedWith('PoolFactory: ETH deposit required to be equal to initial deposit');
+  });
+
+  it('should not allow creating a pool with ETH deposit when assets address is not zero and value > 0', async () => {
+    const { poolFactoryProxy, randomCollectionAddress, loanToValueInBps, randomNFTFilterAddress } =
+      await buildTestContext();
+    const initialDeposit = ethers.utils.parseEther('1');
+
+    // Attempt to create a pool with non-zero assets address and ETH deposit
+    await expect(
+      poolFactoryProxy.createPool(
+        randomCollectionAddress,
+        randomCollectionAddress, // Non-zero assets address
+        loanToValueInBps,
+        50, // initialDailyInterestRateInBps
+        initialDeposit,
+        randomNFTFilterAddress,
+        ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+        { value: initialDeposit },
+      ),
+    ).to.be.revertedWith('Pool: asset should be zero address'); // TODO: currently reverting from Pool directly
+  });
+
+  it('should return the list of deployed pools', async () => {
+    const { poolFactoryProxy, randomCollectionAddress, loanToValueInBps, randomNFTFilterAddress } =
+      await buildTestContext();
+    const initialDeposit = ethers.utils.parseEther('1');
+
+    // Create a pool
+    await poolFactoryProxy.createPool(
+      randomCollectionAddress,
+      ethers.constants.AddressZero,
+      loanToValueInBps,
+      50, // initialDailyInterestRateInBps
+      initialDeposit,
+      randomNFTFilterAddress,
+      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      { value: initialDeposit },
+    );
+
+    // Get the list of deployed pools
+    const pools = await poolFactoryProxy.getPools();
+
+    expect(pools.length).to.equal(1);
+  });
+
+  it('should check if an address is a pool', async () => {
+    const { poolFactoryProxy, randomCollectionAddress, loanToValueInBps, randomNFTFilterAddress } =
+      await buildTestContext();
+    const initialDeposit = ethers.utils.parseEther('1');
+
+    const futurePoolAddress = await poolFactoryProxy.callStatic.createPool(
+      randomCollectionAddress,
+      ethers.constants.AddressZero,
+      loanToValueInBps,
+      50, // initialDailyInterestRateInBps
+      initialDeposit,
+      randomNFTFilterAddress,
+      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      { value: initialDeposit },
+    );
+
+    // Create a pool
+    const poolAddress = await poolFactoryProxy.createPool(
+      randomCollectionAddress,
+      ethers.constants.AddressZero,
+      loanToValueInBps,
+      50, // initialDailyInterestRateInBps
+      initialDeposit,
+      randomNFTFilterAddress,
+      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      { value: initialDeposit },
+    );
+
+    // Check if the pool address is recognized as a pool
+    const isPool = await poolFactoryProxy.isPool(futurePoolAddress);
+
+    expect(isPool).to.equal(true);
+  });
+
+  it('should not allow updating parameters after initialization', async () => {
+    const { poolFactoryProxy, poolFactoryOwner } = await buildTestContext();
+
+    // Attempt to update parameters after initialization
+    await expect(
+      poolFactoryProxy.connect(poolFactoryOwner).initialize(
+        ethers.utils.hexlify(ethers.utils.randomBytes(20)), // New factory owner
+        ethers.utils.hexlify(ethers.utils.randomBytes(20)), // New protocol fee collector
+        0, // New minimal deposit
+      ),
+    ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 });

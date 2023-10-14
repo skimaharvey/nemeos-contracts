@@ -32,9 +32,15 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      * @notice Emitted when a pool is created
      * @param collection Collection address
      * @param ltv Loan to value ratio
+     * @param pool Pool address
      * @param deployer Pool deployer address
      */
-    event PoolCreated(address indexed collection, uint256 ltv, address indexed deployer);
+    event PoolCreated(
+        address indexed collection,
+        uint256 ltv,
+        address pool,
+        address indexed deployer
+    );
 
     /**
      * @notice Emitted when the allowed loan to value ratios are updated
@@ -62,6 +68,11 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      * @notice Allowed loan to value ratio
      */
     uint256[] public allowdLTVs;
+
+    /**
+     * @notice Minimal deposit at creation to avoid inflation attack
+     */
+    uint256 public minimalDepositAtCreation;
 
     /**
      * @notice Allowed NFT filters
@@ -117,7 +128,11 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**
      * @notice PoolFactory initializator
      */
-    function initialize(address factoryOwner_, address protocolFeeCollector_) external initializer {
+    function initialize(
+        address factoryOwner_,
+        address protocolFeeCollector_,
+        uint256 minimalDepositAtCreation_
+    ) external initializer {
         require(factoryOwner_ != address(0), "PoolFactory: Factory owner cannot be zero address");
         require(
             protocolFeeCollector_ != address(0),
@@ -125,6 +140,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         );
         _transferOwnership(factoryOwner_);
         protocolFeeCollector = protocolFeeCollector_;
+        minimalDepositAtCreation = minimalDepositAtCreation_;
     }
 
     /**************************************************************************/
@@ -183,6 +199,9 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         /* Create pool instance */
         address poolInstance = Clones.clone(poolImplementation);
 
+        /* Set pool address in mapping */
+        poolByCollectionAndLtv[collection_][ltvInBPS_] = poolInstance;
+
         /* Add pool to collateral wrapper*/
         ICollateralWrapper(collectionWrapper).addPool(poolInstance);
 
@@ -202,7 +221,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
 
         if (assets_ == address(0)) {
             require(
-                msg.value > 0 && msg.value == initialDeposit_,
+                msg.value >= minimalDepositAtCreation && msg.value == initialDeposit_,
                 "PoolFactory: ETH deposit required to be equal to initial deposit"
             );
             IPool(poolInstance).depositAndVote{value: msg.value}(
@@ -222,7 +241,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         _pools.add(poolInstance);
 
         /* Emit Pool Created */
-        emit PoolCreated(collection_, ltvInBPS_, msg.sender);
+        emit PoolCreated(collection_, ltvInBPS_, poolInstance, msg.sender);
 
         return poolInstance;
     }
@@ -258,6 +277,14 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      */
     function getallowdLTVss() external view returns (uint256[] memory) {
         return allowdLTVs;
+    }
+
+    /**
+     * @notice Retrieves all allowed NFT filters
+     * @return List of allowed NFT filters
+     */
+    function getAllowedNFTFilters() external view returns (address[] memory) {
+        return allowedNFTFilters;
     }
 
     /**************************************************************************/
@@ -308,6 +335,10 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         poolImplementation = poolImplementation_;
 
         emit UpdatePoolImplementation(poolImplementation_);
+    }
+
+    function updateMinimalDepositAtCreation(uint256 minimalDepositAtCreation_) external onlyOwner {
+        minimalDepositAtCreation = minimalDepositAtCreation_;
     }
 
     /**************************************************************************/
