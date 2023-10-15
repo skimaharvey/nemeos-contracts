@@ -10,17 +10,6 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
  */
 contract CollateralFactory {
     /**************************************************************************/
-    /* State */
-    /**************************************************************************/
-
-    address public immutable poolFactory;
-
-    address public immutable collateralImplementationContract = address(new CollateralWrapper());
-
-    /* Collateral wrapper address for a specific collection */
-    mapping(address => address) public collateralWrapper;
-
-    /**************************************************************************/
     /* Events */
     /**************************************************************************/
 
@@ -32,6 +21,17 @@ contract CollateralFactory {
     event CollateralWrapperCreated(address indexed collection, address indexed collateralWrapper);
 
     /**************************************************************************/
+    /* State */
+    /**************************************************************************/
+
+    address public immutable poolFactory;
+
+    address public immutable collateralImplementationContract = address(new CollateralWrapper());
+
+    /* Collateral wrapper address for a specific collection */
+    mapping(address => address) public collateralWrapper;
+
+    /**************************************************************************/
     /* Constructor */
     /**************************************************************************/
 
@@ -40,21 +40,15 @@ contract CollateralFactory {
     }
 
     /**************************************************************************/
-    /* Modifiers */
-    /**************************************************************************/
-
-    modifier onlyPoolFactory() {
-        require(msg.sender == poolFactory, "CollateralWrapper: Only pool factory can call");
-        _;
-    }
-
-    /**************************************************************************/
     /* Implementation */
     /**************************************************************************/
 
     function deployCollateralWrapper(
         address collection_
-    ) external onlyPoolFactory returns (address collateralWrapperAddress) {
+    ) external returns (address collateralWrapperAddress) {
+        /* Only allow PoolFactory to call */
+        require(msg.sender == poolFactory, "CollateralWrapper: Only pool factory can call");
+
         /* Check if collateral wrapper already exists */
         require(
             collateralWrapper[collection_] == address(0),

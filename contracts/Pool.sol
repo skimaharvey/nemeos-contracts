@@ -235,6 +235,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         address asset_,
         uint256 loanToValueinBPS_,
         uint256 initialDailyInterestRateinBPS_,
+        uint256 maxDailyInterestRate_,
         address wrappedNFT_,
         address liquidator_,
         address NFTFilter_,
@@ -250,6 +251,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         nftCollection = nftCollection_;
         ltvInBPS = loanToValueinBPS_;
         dailyInterestRate = initialDailyInterestRateinBPS_;
+        maxDailyInterestRate = maxDailyInterestRate_;
         wrappedNFT = wrappedNFT_;
         liquidator = liquidator_;
         NFTFilter = NFTFilter_;

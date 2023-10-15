@@ -66,9 +66,7 @@ describe('Pool', async () => {
 
     // deploy liquidator
     const randomLiquidatorAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
-    const DutchAuctionLiquidatoFactory = await ethers.getContractFactory(
-      'DutchAuctionCollateralLiquidator',
-    );
+    const DutchAuctionLiquidatoFactory = await ethers.getContractFactory('DutchAuctionLiquidator');
     const dutchAuctionLiquidatorFactory = await DutchAuctionLiquidatoFactory.deploy(
       poolFactoryProxy.address,
       7,
@@ -1686,7 +1684,7 @@ describe('Pool', async () => {
 
         const depositAmount = ethers.utils.parseEther('100');
 
-        const maxInterestRate = await poolProxy.MAX_INTEREST_RATE();
+        const maxInterestRate = await poolProxy.maxDailyInterestRate();
 
         await expect(
           poolProxy.connect(lender1).depositAndVote(lender1.address, maxInterestRate.add(1), {

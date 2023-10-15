@@ -18,6 +18,7 @@ interface IPool {
         address asset_,
         uint256 loanToValueinBPS_,
         uint256 initialDailyInterestRateinBPS_,
+        uint256 maxDailyInterestRateInBPS_,
         address wrappedNFT_,
         address liquidator_,
         address NFTFilter_,

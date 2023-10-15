@@ -88,6 +88,12 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      */
     uint256 public minimalDepositAtCreation;
 
+    /* todo: make it updatable */
+    /**
+     * @notice Max daily rate interest for the pool (in BPS)
+     */
+    uint256 public constant MAX_POOL_DAILY_RATE_INTEREST = 100;
+
     /**
      * @notice Allowed NFT filters
      */
@@ -225,6 +231,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
             assets_,
             ltvInBPS_,
             initialDailyInterestRateInBPS_,
+            MAX_POOL_DAILY_RATE_INTEREST,
             collectionWrapper,
             liquidator_,
             nftFilter_,
