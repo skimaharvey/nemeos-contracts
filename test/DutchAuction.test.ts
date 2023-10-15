@@ -4,14 +4,14 @@ import { deployMockERC721 } from './helpers';
 
 describe('DutchAuctionCollateralLiquidator', async () => {
   const buildTestContext = async () => {
-    const [nftOwner, owner, borrower, bidder] = await ethers.getSigners();
+    const [nftOwner, owner, borrower, bidder, pool] = await ethers.getSigners();
 
     // deploy ERC721 mock contract
     const collateralToken = await deployMockERC721(nftOwner);
 
     // deploy PoolFactoryMock contract
     const PoolFactoryMock = await ethers.getContractFactory('PoolFactoryMock');
-    const poolFactoryMock = await PoolFactoryMock.deploy();
+    const poolFactoryMock = await PoolFactoryMock.deploy(pool.address);
 
     // Deploy the DutchAuctionCollateralLiquidator contract
     const DutchAuctionCollateralLiquidator =

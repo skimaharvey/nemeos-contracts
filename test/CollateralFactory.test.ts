@@ -3,11 +3,11 @@ import { expect } from 'chai';
 
 describe('CollateralFactory', async () => {
   const buildTestContext = async () => {
-    const [poolFactoryOwner, randomCollectionOwner] = await ethers.getSigners();
+    const [poolFactoryOwner, randomCollectionOwner, pool] = await ethers.getSigners();
 
     // Deploy the PoolFactoryMock contract
     const PoolFactoryMock = await ethers.getContractFactory('PoolFactoryMock');
-    const poolFactoryMock = await PoolFactoryMock.deploy();
+    const poolFactoryMock = await PoolFactoryMock.deploy(pool.address);
     await poolFactoryMock.deployed();
 
     // Deploy the CollateralFactory contract

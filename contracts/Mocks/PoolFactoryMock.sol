@@ -2,10 +2,17 @@
 pragma solidity 0.8.19;
 
 import {CollateralFactory} from "../CollateralFactory.sol";
+import {CollateralWrapper} from "../CollateralWrapper.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 contract PoolFactoryMock {
     address[] public pools;
     address public collateralFactory;
+    address poolImplementation;
+
+    constructor(address poolImplementation_) {
+        poolImplementation = poolImplementation_;
+    }
 
     function isPool(address pool) external view returns (bool) {
         // pool length
@@ -26,6 +33,10 @@ contract PoolFactoryMock {
         pools.push(newPool);
     }
 
+    function addPoolToCollateralWrapper(address collateralWrapper, address pool) external {
+        CollateralWrapper(collateralWrapper).addPool(pool);
+    }
+
     function createPool(
         address collection_,
         address /* assets_ */,
@@ -34,8 +45,13 @@ contract PoolFactoryMock {
         uint256 /* initialDeposit_ */,
         address /* nftFilter_ */,
         address /* liquidator_ */
-    ) external payable returns (address) {
-        CollateralFactory(collateralFactory).deployCollateralWrapper(collection_);
+    ) external payable returns (address, address) {
+        address collateralWrapper = CollateralFactory(collateralFactory).deployCollateralWrapper(
+            collection_
+        );
+        address poolInstance = Clones.clone(poolImplementation);
+
+        return (poolInstance, collateralWrapper);
     }
 
     function updateCollateralFactory(address newCollateralFactory) external {
