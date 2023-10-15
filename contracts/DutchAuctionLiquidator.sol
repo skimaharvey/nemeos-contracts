@@ -11,10 +11,10 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
- * @title Dutch Auction Collateral Liquidator
+ * @title Dutch Auction liquidated Liquidator
  * @author Nemeos
  */
-contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
+contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
     /**************************************************************************/
     /* Structures */
     /**************************************************************************/
@@ -47,27 +47,31 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
     /**
      * @notice Emitted when an liquidation is created
      * @param pool Pool address
-     * @param collateralToken Collateral token
-     * @param collateralTokenId Collateral token ID
+     * @param liquidatedToken liquidated token
+     * @param liquidatedTokenId liquidated token ID
+     * @param borrower Borrower of liquidated NFT
      * @param startingPrice Starting price
      */
     event LiquidationStarted(
         address indexed pool,
-        address indexed collateralToken,
-        uint256 indexed collateralTokenId,
+        address indexed liquidatedToken,
+        uint256 liquidatedTokenId,
+        address indexed borrower,
         uint256 startingPrice
     );
 
     /**
-     * @notice Emitted when an liquidation is ended and collateral is claimed by winner
-     * @param collateralToken Collateral token
-     * @param collateralTokenId Collateral token ID
+     * @notice Emitted when an liquidation is ended and liquidated is claimed by winner
+     * @param liquidatedToken liquidated token
+     * @param liquidatedTokenId liquidated token ID
+     * @param borrower Borrower of liquidated NFT
      * @param winner Winner of liquidation
      * @param winningPrice Winning price
      */
     event LiquidationEnded(
-        address indexed collateralToken,
-        uint256 indexed collateralTokenId,
+        address indexed liquidatedToken,
+        uint256 liquidatedTokenId,
+        address indexed borrower,
         address indexed winner,
         uint256 winningPrice
     );
@@ -96,12 +100,12 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
     /**************************************************************************/
 
     /**
-     * @notice DutchAuctionCollateralLiquidator constructor
+     * @notice DutchAuctionliquidatedLiquidator constructor
      */
     constructor(address poolsFactory_, uint64 liquidationDurationInDays_) {
         require(
             liquidationDurationInDays_ > 0,
-            "DutchAuctionCollateralLiquidator: Invalid liquidation duration"
+            "DutchAuctionliquidatedLiquidator: Invalid liquidation duration"
         );
         _liquidationDuration = liquidationDurationInDays_ * 1 days;
         poolsFactory = poolsFactory_;
@@ -116,13 +120,13 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
      *
      * Emits a {LiquidationStarted} event.
      *
-     * @param collateralToken_ Collateral token
-     * @param collateralTokenId_ Collateral token ID
+     * @param liquidatedToken_ Liquidated token
+     * @param liquidatedTokenId_ Liquidated token ID
      * @param startingPrice_ Starting price
      */
     function liquidate(
-        address collateralToken_,
-        uint256 collateralTokenId_,
+        address liquidatedToken_,
+        uint256 liquidatedTokenId_,
         uint256 startingPrice_,
         address borrower_
     ) external nonReentrant {
@@ -131,16 +135,16 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
 
         /* Check if liquidator owns the tokenId */
         require(
-            IERC721(collateralToken_).ownerOf(collateralTokenId_) == address(this),
+            IERC721(liquidatedToken_).ownerOf(liquidatedTokenId_) == address(this),
             "Liquidator: Liquidator does not own the token"
         );
 
         /* Create liquidation */
-        _liquidations[collateralToken_][collateralTokenId_] = Liquidation({
+        _liquidations[liquidatedToken_][liquidatedTokenId_] = Liquidation({
             pool: msg.sender,
             liquidationStatus: true,
-            collection: collateralToken_,
-            tokenId: collateralTokenId_,
+            collection: liquidatedToken_,
+            tokenId: liquidatedTokenId_,
             startingPrice: startingPrice_,
             startingTimeStamp: block.timestamp,
             endingTimeStamp: block.timestamp + _liquidationDuration,
@@ -148,7 +152,13 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
         });
 
         /* Emit LiquidationStarted */
-        emit LiquidationStarted(msg.sender, collateralToken_, collateralTokenId_, startingPrice_);
+        emit LiquidationStarted(
+            msg.sender,
+            liquidatedToken_,
+            liquidatedTokenId_,
+            borrower_,
+            startingPrice_
+        );
     }
 
     /**
@@ -156,18 +166,18 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
      *
      * Emits a {LiquidationEnded} event.
      *
-     * @param collateralToken Collateral token
-     * @param collateralTokenId Collateral token ID
+     * @param liquidatedToken liquidated token
+     * @param liquidatedTokenId liquidated token ID
      */
-    function buy(address collateralToken, uint256 collateralTokenId) external payable nonReentrant {
+    function buy(address liquidatedToken, uint256 liquidatedTokenId) external payable nonReentrant {
         /* Get liquidation */
-        Liquidation memory liquidation = _liquidations[collateralToken][collateralTokenId];
+        Liquidation memory liquidation = _liquidations[liquidatedToken][liquidatedTokenId];
 
         /* Validate liquidation is active */
         require(liquidation.liquidationStatus, "Liquidator: Liquidation is not active");
 
         /* Delete liquidation */
-        delete _liquidations[collateralToken][collateralTokenId];
+        delete _liquidations[liquidatedToken][liquidatedTokenId];
 
         uint256 currentPrice = _currentPrice(
             liquidation.startingTimeStamp,
@@ -179,7 +189,13 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
         require(msg.value >= currentPrice, "Liquidator: Bid amount is too low");
 
         /* Emit LiquidationEnded */
-        emit LiquidationEnded(collateralToken, collateralTokenId, msg.sender, currentPrice);
+        emit LiquidationEnded(
+            liquidatedToken,
+            liquidatedTokenId,
+            liquidation.borrower,
+            msg.sender,
+            msg.value
+        );
 
         /* Transfer bid amount to pool */
         IPool(liquidation.pool).refundFromLiquidation{value: msg.value}(
@@ -187,8 +203,8 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
             liquidation.borrower
         );
 
-        /* Transfer collateral to winner */
-        IERC721(collateralToken).safeTransferFrom(address(this), msg.sender, collateralTokenId);
+        /* Transfer liquidated to winner */
+        IERC721(liquidatedToken).safeTransferFrom(address(this), msg.sender, liquidatedTokenId);
     }
 
     /**************************************************************************/
@@ -197,28 +213,28 @@ contract DutchAuctionCollateralLiquidator is ReentrancyGuard, Initializable {
 
     /**
      * @notice Get liquidation
-     * @param collateralToken Collateral token
-     * @param collateralTokenId Collateral token ID
+     * @param liquidatedToken liquidated token
+     * @param liquidatedTokenId liquidated token ID
      * @return Liquidation
      */
     function getLiquidation(
-        address collateralToken,
-        uint256 collateralTokenId
+        address liquidatedToken,
+        uint256 liquidatedTokenId
     ) external view returns (Liquidation memory) {
-        return _liquidations[collateralToken][collateralTokenId];
+        return _liquidations[liquidatedToken][liquidatedTokenId];
     }
 
     /**
      * @notice Get current price of liquidation
-     * @param collateralToken Collateral token
-     * @param collateralTokenId Collateral token ID
+     * @param liquidatedToken liquidated token
+     * @param liquidatedTokenId liquidated token ID
      * @return Current price
      */
     function getLiquidationCurrentPrice(
-        address collateralToken,
-        uint256 collateralTokenId
+        address liquidatedToken,
+        uint256 liquidatedTokenId
     ) external view returns (uint256) {
-        Liquidation memory liquidation = _liquidations[collateralToken][collateralTokenId];
+        Liquidation memory liquidation = _liquidations[liquidatedToken][liquidatedTokenId];
         return
             _currentPrice(
                 liquidation.startingTimeStamp,

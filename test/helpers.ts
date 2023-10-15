@@ -173,3 +173,10 @@ export async function buyNFTHelper(
     );
   await expect(tx).to.emit(seaportSettlementManager, 'BuyExecuted');
 }
+
+export async function deployMockERC721(owner: SignerWithAddress) {
+  const MockERC721 = await ethers.getContractFactory('NFTMock');
+  const mockERC721 = await MockERC721.connect(owner).deploy();
+  await mockERC721.deployed();
+  return mockERC721;
+}
