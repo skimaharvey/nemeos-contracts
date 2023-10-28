@@ -154,6 +154,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* The maximum amount of time that can pass between loan payments */
     uint256 constant MAX_LOAN_REFUND_INTERVAL = 30 days;
 
+    /* The protocol fee basis points */
+    uint256 public constant PROTOCOL_FEE_BASIS_POINTS = 1500; // 15% of interest fees
+
     uint256 public constant BASIS_POINTS = 10_000;
 
     /* The minimum loan to value ratio */
@@ -369,6 +372,13 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* update the loan */
         loan.amountOwedWithInterest -= msg.value;
 
+        /* calculate protocol fees */
+        uint256 protocolFees = (loan.interestAmountPerPaiement * PROTOCOL_FEE_BASIS_POINTS) /
+            BASIS_POINTS;
+
+        /* mint shares to protocolFeeCollector */
+        _mint(protocolFeeCollector, previewDeposit(protocolFees));
+
         /* update the loan number of installement */
         loan.remainingNumberOfInstallments -= 1;
 
@@ -492,6 +502,20 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         /* store the loan */
         loans[loanHash] = loan;
+
+        /* take protocol fee out of the interestAmountPerPaiement * number of installments remaining * protocolFee */
+        uint256 protocolFees = (loan.interestAmountPerPaiement *
+            loan.remainingNumberOfInstallments *
+            PROTOCOL_FEE_BASIS_POINTS) / BASIS_POINTS;
+
+        /* make sure that the protocol fees are not higher than the amount received */
+        protocolFees = protocolFees <= msg.value ? protocolFees : msg.value;
+
+        /* convert protocol fees to shares */
+        uint256 shares = previewDeposit(protocolFees);
+
+        /* mint shares to protocolFeeCollector */
+        _mint(protocolFeeCollector, shares);
 
         emit LoanLiquidationRefund(nftCollection, tokenId_, msg.value);
     }
@@ -709,8 +733,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 totalShares = totalSupply();
         uint256 currentDailyInterestRate = dailyInterestRate;
 
-        uint256 newDailyInterestRate = ((currentDailyInterestRate * totalShares) -
-            (dailyInterestRatePerLender[msg.sender] * burntShares)) / (totalShares - burntShares);
+        uint256 newDailyInterestRate = (totalShares - burntShares) != 0
+            ? ((currentDailyInterestRate * totalShares) -
+                (dailyInterestRatePerLender[msg.sender] * burntShares)) /
+                (totalShares - burntShares)
+            : 0;
 
         /* If all shares of msg.sender are burnt, set their daily interest rate to 0 */
         if (burntShares == totalShares) {
