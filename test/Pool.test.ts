@@ -158,6 +158,7 @@ describe('Pool', async () => {
       tokenContract,
       lender1,
       lender2,
+      protocolFeeCollector,
     };
   };
 
@@ -2236,6 +2237,318 @@ describe('Pool', async () => {
           expect(redeemValueAfter).to.be.lessThan(redeemValueBefore);
         });
       });
+    });
+  });
+  describe('Protocol Fees', async () => {
+    it('should be able to withdraw protocol fees', async () => {
+      const {
+        poolProxy,
+        impersonatedWhaleSigner,
+        initialDailyInterestRateInBps,
+        seaportSettlementManager,
+        loanToValueInBps,
+        collectionAddress,
+        oracleSigner,
+        borrower,
+        protocolFeeCollector,
+      } = await buildTestContext();
+
+      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
+
+      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+
+      // deposit into pool
+      const deposit = ethers.utils.parseEther('100');
+      await poolProxy
+        .connect(impersonatedWhaleSigner)
+        .depositAndVote(impersonatedWhaleSigner.address, initialDailyInterestRateInBps, {
+          value: deposit,
+        });
+
+      const loanDurationInDays = 90;
+      const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+
+      // remaining to be paid
+      const remainingToBePaid = nftPrice - ltvValue;
+
+      const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+
+      // calculate LoanPrice from NFT price
+      const [loanPrice] = await poolProxy.calculateLoanPrice(
+        remainingToBePaidInBN,
+        loanDurationInDays,
+      );
+
+      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+
+      const oracleSignature = await mockSignLoan(
+        collectionAddress,
+        tokenId,
+        BigNumber.from(nftPrice.toString()),
+        priceWithInterest,
+        borrower.address,
+        0,
+        loanTimestamp,
+        orderExtraData,
+        oracleSigner,
+      );
+
+      // buy NFT
+      await buyNFTHelper(
+        poolProxy,
+        borrower,
+        collectionAddress,
+        tokenId,
+        BigNumber.from(nftPrice.toString()),
+        priceWithInterest,
+        seaportSettlementManager,
+        loanTimestamp,
+        loanDurationInSeconds,
+        orderExtraData,
+        oracleSignature,
+        BigNumber.from(ltvValue.toString()),
+      );
+
+      // expect protocol fees to be 0 at the beginning
+      const totalFeesCollectedBefore = await poolProxy.balanceOf(protocolFeeCollector.address);
+      expect(totalFeesCollectedBefore).to.be.equal(0);
+
+      // advance blockchain 29 days
+      await ethers.provider.send('evm_increaseTime', [29 * 24 * 60 * 60]);
+      await ethers.provider.send('evm_mine', []);
+
+      // refund loan of loanPrice / 3 (1/3 of loan price)
+      await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
+        value: loanPrice.div(3),
+      });
+
+      // fetch loan info
+      const loan = await poolProxy.retrieveLoan(tokenId, borrower.address);
+
+      // expect protocol fees to be 15% of the loan.interestAmountPerPaiement
+      const protocolFeesCalculated = loan.interestAmountPerPaiement.mul(15).div(100);
+
+      // expect protocol fees to be 15% of the loan.interestAmountPerPaiement
+      const totalFeesCollectedInShares = await poolProxy.balanceOf(protocolFeeCollector.address);
+      const totalFeesCollectedInAssets = await poolProxy.previewRedeem(totalFeesCollectedInShares);
+
+      // todo: use more meaningful delta
+      const delta = ethers.utils.parseEther('0.1');
+      expect(totalFeesCollectedInAssets).to.be.closeTo(protocolFeesCalculated, delta);
+
+      // protocol fee collector balance before withdraw
+      const protocolFeeCollectorBalanceBefore = await ethers.provider.getBalance(
+        protocolFeeCollector.address,
+      );
+
+      // withdraw protocol fees
+      const withdrawTx = await poolProxy
+        .connect(protocolFeeCollector)
+        .redeem(
+          totalFeesCollectedInShares,
+          protocolFeeCollector.address,
+          protocolFeeCollector.address,
+        );
+
+      // expect protocol fees to be 0 after withdraw
+      const totalFeesCollectedAfterWithdraw = await poolProxy.balanceOf(
+        protocolFeeCollector.address,
+      );
+      expect(totalFeesCollectedAfterWithdraw).to.be.equal(0);
+
+      // expect protocol fee collector to have the protocol fees
+      const protocolFeeCollectorBalanceAfter = await ethers.provider.getBalance(
+        protocolFeeCollector.address,
+      );
+      const txReceipt = await ethers.provider.getTransactionReceipt(withdrawTx.hash);
+
+      const gasUsed = txReceipt.gasUsed.mul(withdrawTx.gasPrice as BigNumber);
+
+      expect(protocolFeeCollectorBalanceAfter).to.be.equal(
+        totalFeesCollectedInAssets.add(protocolFeeCollectorBalanceBefore).sub(gasUsed),
+      );
+    });
+
+    it('should be able to withdraw protocol fees and lender liquidity', async () => {
+      const {
+        poolProxy,
+        impersonatedWhaleSigner: lender,
+        initialDailyInterestRateInBps,
+        seaportSettlementManager,
+        loanToValueInBps,
+        collectionAddress,
+        oracleSigner,
+        borrower,
+        protocolFeeCollector,
+        poolFactoryOwner,
+      } = await buildTestContext();
+
+      const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
+
+      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+
+      // deposit into pool
+      const deposit = ethers.utils.parseEther('100');
+      await poolProxy
+        .connect(lender)
+        .depositAndVote(lender.address, initialDailyInterestRateInBps, {
+          value: deposit,
+        });
+
+      const loanDurationInDays = 90;
+      const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
+
+      // remaining to be paid
+      const remainingToBePaid = nftPrice - ltvValue;
+
+      const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
+
+      // calculate LoanPrice from NFT price
+      const [loanPrice] = await poolProxy.calculateLoanPrice(
+        remainingToBePaidInBN,
+        loanDurationInDays,
+      );
+
+      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+
+      const oracleSignature = await mockSignLoan(
+        collectionAddress,
+        tokenId,
+        BigNumber.from(nftPrice.toString()),
+        priceWithInterest,
+        borrower.address,
+        0,
+        loanTimestamp,
+        orderExtraData,
+        oracleSigner,
+      );
+
+      // buy NFT
+      await buyNFTHelper(
+        poolProxy,
+        borrower,
+        collectionAddress,
+        tokenId,
+        BigNumber.from(nftPrice.toString()),
+        priceWithInterest,
+        seaportSettlementManager,
+        loanTimestamp,
+        loanDurationInSeconds,
+        orderExtraData,
+        oracleSignature,
+        BigNumber.from(ltvValue.toString()),
+      );
+
+      // expect protocol fees to be 0 at the beginning
+      const totalFeesCollectedBefore = await poolProxy.balanceOf(protocolFeeCollector.address);
+      expect(totalFeesCollectedBefore).to.be.equal(0);
+
+      // advance blockchain 29 days
+      await ethers.provider.send('evm_increaseTime', [29 * 24 * 60 * 60]);
+      await ethers.provider.send('evm_mine', []);
+
+      // refund loan of loanPrice / 3 (1/3 of loan price)
+      await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
+        value: loanPrice.div(3),
+      });
+
+      // advance blockchain 29 days
+      await ethers.provider.send('evm_increaseTime', [29 * 24 * 60 * 60]);
+      await ethers.provider.send('evm_mine', []);
+
+      // refund loan of loanPrice / 3 (1/3 of loan price)
+      await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
+        value: loanPrice.div(3),
+      });
+
+      // advance blockchain 29 days
+      await ethers.provider.send('evm_increaseTime', [29 * 24 * 60 * 60]);
+      await ethers.provider.send('evm_mine', []);
+
+      // refund loan of loanPrice / 3 (1/3 of loan price)
+      await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
+        value: loanPrice.div(3),
+      });
+
+      const lenderBalanceBefore = await ethers.provider.getBalance(lender.address);
+
+      // get lender shares
+      const lenderShares = await poolProxy.balanceOf(lender.address);
+
+      // get lender redeem value
+      const lenderRedeemValue = await poolProxy.previewRedeem(lenderShares);
+
+      // withdraw lenderWithdrawTx liquidity
+      const lenderWithdrawTx = await poolProxy
+        .connect(lender)
+        .redeem(lenderShares, lender.address, lender.address);
+
+      const txLenderReceipt = await ethers.provider.getTransactionReceipt(lenderWithdrawTx.hash);
+      const gasUsedLender = txLenderReceipt.gasUsed.mul(lenderWithdrawTx.gasPrice as BigNumber);
+
+      // expect lender to have the liquidity
+      const lenderBalanceAfter = await ethers.provider.getBalance(lender.address);
+      expect(lenderBalanceAfter).to.be.equal(
+        lenderRedeemValue.add(lenderBalanceBefore).sub(gasUsedLender),
+      );
+
+      // protocol fee collector balance before withdraw
+      const protocolFeeCollectorBalanceBefore = await ethers.provider.getBalance(
+        protocolFeeCollector.address,
+      );
+
+      // withdraw protocol fees
+      const protocolCollectorShares = await poolProxy.balanceOf(protocolFeeCollector.address);
+      const totalFeesCollectedInAssets = await poolProxy.previewRedeem(protocolCollectorShares);
+
+      const withdrawTx = await poolProxy
+        .connect(protocolFeeCollector)
+        .redeem(
+          protocolCollectorShares,
+          protocolFeeCollector.address,
+          protocolFeeCollector.address,
+        );
+
+      // expect protocol fees to be 0 after withdraw
+      const totalFeesCollectedAfterWithdraw = await poolProxy.balanceOf(
+        protocolFeeCollector.address,
+      );
+      expect(totalFeesCollectedAfterWithdraw).to.be.equal(0);
+
+      // expect protocol fee collector to have the protocol fees
+      const protocolFeeCollectorBalanceAfter = await ethers.provider.getBalance(
+        protocolFeeCollector.address,
+      );
+
+      const txReceipt = await ethers.provider.getTransactionReceipt(withdrawTx.hash);
+      const gasUsed = txReceipt.gasUsed.mul(withdrawTx.gasPrice as BigNumber);
+
+      expect(protocolFeeCollectorBalanceAfter).to.be.equal(
+        totalFeesCollectedInAssets.add(protocolFeeCollectorBalanceBefore).sub(gasUsed),
+      );
+
+      const poolCreatorBalanceInShares = await poolProxy.balanceOf(poolFactoryOwner.address);
+      const poolCreatorBalanceInAssets = await poolProxy.previewRedeem(poolCreatorBalanceInShares);
+      const poolCreatorBalanceBefore = await ethers.provider.getBalance(poolFactoryOwner.address);
+
+      // withdraw poolCreator
+      const poolCreatorWithdrawTx = await poolProxy
+        .connect(poolFactoryOwner)
+        .redeem(poolCreatorBalanceInShares, poolFactoryOwner.address, poolFactoryOwner.address);
+
+      const poolCreatorBalanceAfter = await ethers.provider.getBalance(poolFactoryOwner.address);
+
+      const poolCreatorTxReceipt = await ethers.provider.getTransactionReceipt(
+        poolCreatorWithdrawTx.hash,
+      );
+
+      const poolCreatorGasUsed = poolCreatorTxReceipt.gasUsed.mul(
+        poolCreatorWithdrawTx.gasPrice as BigNumber,
+      );
+
+      expect(poolCreatorBalanceAfter).to.be.equal(
+        poolCreatorBalanceInAssets.add(poolCreatorBalanceBefore).sub(poolCreatorGasUsed),
+      );
     });
   });
 });
