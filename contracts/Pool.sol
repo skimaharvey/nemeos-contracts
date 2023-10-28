@@ -23,7 +23,6 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-// todo: add fee collecting logic (see with team)
 contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     using MathUpgradeable for uint256;
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -276,7 +275,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* Borrower API */
     /**************************************************************************/
 
-    // todo: add the logic that verify user agrees with total amount to be paid back (may be with slippage)
     // todo: add settlement manager logic (see with team if need as it is part of the signature and the verification?)
     function buyNFT(
         address collectionAddress_,
@@ -511,11 +509,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* make sure that the protocol fees are not higher than the amount received */
         protocolFees = protocolFees <= msg.value ? protocolFees : msg.value;
 
-        /* convert protocol fees to shares */
-        uint256 shares = previewDeposit(protocolFees);
-
         /* mint shares to protocolFeeCollector */
-        _mint(protocolFeeCollector, shares);
+        _mint(protocolFeeCollector, previewDeposit(protocolFees));
 
         emit LoanLiquidationRefund(nftCollection, tokenId_, msg.value);
     }
