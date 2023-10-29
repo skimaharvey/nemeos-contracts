@@ -46,9 +46,9 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
 
     /**
      * @notice Emitted when the allowed loan to value ratios are updated
-     * @param allowdLTVs New allowed loan to value ratios
+     * @param allowedLTVs New allowed loan to value ratios
      */
-    event UpdateAllowedLTVs(uint256[] allowdLTVs);
+    event UpdateAllowedLTVs(uint256[] allowedLTVs);
 
     /**
      * @notice Emitted when the allowed NFT filters are updated
@@ -81,7 +81,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**
      * @notice Allowed loan to value ratio
      */
-    uint256[] public allowdLTVs;
+    uint256[] public allowedLTVs;
 
     /**
      * @notice Minimal deposit at creation to avoid inflation attack
@@ -212,8 +212,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         );
         if (collectionWrapper == address(0)) {
             collectionWrapper = CollateralFactory(collateralFactoryAddress).deployCollateralWrapper(
-                collection_
-            );
+                    collection_
+                );
         }
 
         /* Create pool instance */
@@ -296,8 +296,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      * @notice Retrieves all allowed LTVs
      * @return List of allowed LTVs
      */
-    function getallowdLTVss() external view returns (uint256[] memory) {
-        return allowdLTVs;
+    function getallowedLTVss() external view returns (uint256[] memory) {
+        return allowedLTVs;
     }
 
     /**
@@ -329,10 +329,10 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         _upgradeToAndCall(newImplementation, data, false);
     }
 
-    function updateAllowedLTVs(uint256[] calldata allowdLTVs_) external onlyOwner {
-        allowdLTVs = allowdLTVs_;
+    function updateAllowedLTVs(uint256[] calldata allowedLTVs_) external onlyOwner {
+        allowedLTVs = allowedLTVs_;
 
-        emit UpdateAllowedLTVs(allowdLTVs_);
+        emit UpdateAllowedLTVs(allowedLTVs_);
     }
 
     function updateAllowedNFTFilters(address[] calldata allowedNFTFilters_) external onlyOwner {
@@ -371,8 +371,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**************************************************************************/
 
     function _verifyLtv(uint256 ltv_) internal view returns (bool) {
-        for (uint256 i = 0; i < allowdLTVs.length; i++) {
-            if (allowdLTVs[i] == ltv_) {
+        for (uint256 i = 0; i < allowedLTVs.length; i++) {
+            if (allowedLTVs[i] == ltv_) {
                 return true;
             }
         }

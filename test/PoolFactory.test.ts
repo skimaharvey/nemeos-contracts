@@ -195,7 +195,7 @@ describe('PoolFactory', async () => {
 
     await poolFactoryProxy.connect(poolFactoryOwner).updateAllowedLTVs(newAllowedLTVs);
 
-    const updatedAllowedLTVs = await poolFactoryProxy.getallowdLTVss();
+    const updatedAllowedLTVs = await poolFactoryProxy.getallowedLTVss();
     expect(updatedAllowedLTVs).to.deep.equal(newAllowedLTVs);
   });
 
