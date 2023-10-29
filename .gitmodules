@@ -1,3 +1,4 @@
 [submodule "lib/seaport"]
 	path = lib/seaport
 	url = https://github.com/ProjectOpenSea/seaport
+	branch = 1.5

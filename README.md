@@ -1,13 +1,22 @@
-# Sample Hardhat Project
+# Nemeos Smart Contracts
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+## Install
 
-Try running some of the following tasks:
+Download the project and its submodules
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.ts
+```bash
+git clone --recurse-submodules git@github.com:nemeos/contracts.git
+```
+
+If you already cloned but forgot to load the submodules, you can load them with
+
+```bash
+git submodule update --init --recursive
+```
+
+## Build
+
+```bash
+pnpm install
+npx hardhat compile
 ```
