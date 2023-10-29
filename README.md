@@ -17,6 +17,11 @@ git submodule update --init --recursive
 ## Build
 
 ```bash
-pnpm install
+cd lib/seaport
+npm install -D
+npm run build
+
+cd ../../
+npm install -D
 npx hardhat compile
 ```
