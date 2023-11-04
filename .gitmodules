@@ -2,3 +2,6 @@
 	path = lib/seaport
 	url = https://github.com/ProjectOpenSea/seaport
 	branch = 1.5
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
