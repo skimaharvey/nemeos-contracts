@@ -242,7 +242,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         address liquidator_,
         address NFTFilter_,
         address protocolFeeCollector_
-    ) external initializer {
+    ) external virtual initializer {
         require(nftCollection_ != address(0), "Pool: nftCollection is zero address");
         require(liquidator_ != address(0), "Pool: liquidator is zero address");
         require(NFTFilter_ != address(0), "Pool: NFTFilter is zero address");
