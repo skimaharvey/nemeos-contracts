@@ -65,11 +65,25 @@ abstract contract Base_Test is Test, Constants {
         );
 
         collateralFactory = new CollateralFactory(address(poolFactory));
+
+        vm.startPrank({msgSender: users.factoryOwner});
+        // set CollateralFactory to PoolFactory
+        PoolFactoryMock(address(poolFactory)).updateCollateralFactory(address(collateralFactory));
+
         collateralWrapper = new CollateralWrapperMock();
         CollateralWrapperMock(address(collateralWrapper)).initialize(
             address(collection),
             address(poolFactory)
         );
+
+        // set Pool implementation to PoolFactory
+        Pool poolImplemenation = new Pool();
+        poolFactory.updatePoolImplementation(address(poolImplemenation));
+
+        // set ltvs to PoolFactory
+        uint256[] memory ltvsInBPS = new uint256[](1);
+        ltvsInBPS[0] = ltvInBPS;
+        poolFactory.updateAllowedLTVs(ltvsInBPS);
 
         dutchAuctionLiquidator = new DutchAuctionLiquidator(
             address(poolFactory),
@@ -85,7 +99,12 @@ abstract contract Base_Test is Test, Constants {
             supportedSettlementManagers // left empty since verifyLoanValidity is overriden
         );
 
-        address poolAddress = poolFactory.createPool(
+        // set NFTFilter to PoolFactory
+        address[] memory nftFilters = new address[](1);
+        nftFilters[0] = address(nftFilter);
+        PoolFactoryMock(address(poolFactory)).updateAllowedNFTFilters(nftFilters);
+
+        address poolAddress = poolFactory.createPool{value: minimalDepositAtCreation}(
             address(collection),
             address(0),
             ltvInBPS,
@@ -94,8 +113,25 @@ abstract contract Base_Test is Test, Constants {
             address(nftFilter),
             address(dutchAuctionLiquidator)
         );
+        vm.stopPrank();
 
         pool = Pool(poolAddress);
+
+        // label contracts
+        vm.label({account: address(collection), newLabel: "nftCollection"});
+        vm.label({account: address(poolFactory), newLabel: "poolFactory"});
+        vm.label({account: address(pool), newLabel: "pool"});
+        vm.label({account: address(collateralFactory), newLabel: "collateralFactory"});
+        vm.label({account: address(collateralWrapper), newLabel: "collateralWrapper"});
+        vm.label({account: address(dutchAuctionLiquidator), newLabel: "dutchAuctionLiquidator"});
+        vm.label({account: address(nftFilter), newLabel: "nftFilter"});
+        vm.label({
+            account: address(seaportSettlementManager),
+            newLabel: "seaportSettlementManager"
+        });
+
+        // Warp to May 1, 2023 at 00:00 GMT to provide a more realistic testing environment.
+        vm.warp(MAY_1_2023);
     }
 
     /**************************************************************************/
