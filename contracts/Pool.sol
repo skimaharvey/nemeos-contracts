@@ -713,12 +713,20 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 previousNumberOfShares = totalSupply();
         uint256 currentDailyInterestRate = dailyInterestRate;
 
-        // todo: check calculation
         uint256 newDailyInterestRate = ((currentDailyInterestRate * previousNumberOfShares) +
             (dailyInterestRate_ * newShares_)) / (previousNumberOfShares + newShares_);
 
+        /* Current dailyInterestRatePerLender */
+        uint256 currentDailyInterestRatePerLender = dailyInterestRatePerLender[msg.sender];
+
+        uint256 currentNumberOfShares = balanceOf(msg.sender);
+
+        uint256 newDailyInterestRatePerLender = ((currentDailyInterestRatePerLender *
+            currentNumberOfShares) + (dailyInterestRate_ * newShares_)) /
+            (currentNumberOfShares + newShares_);
+
         /* Update the daily interest rate for this specific lender */
-        dailyInterestRatePerLender[msg.sender] = dailyInterestRate_;
+        dailyInterestRatePerLender[msg.sender] = newDailyInterestRatePerLender;
 
         /* Update the daily interest rate of the pool */
         dailyInterestRate = newDailyInterestRate;
