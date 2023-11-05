@@ -105,7 +105,7 @@ contract NFTFilter {
         uint256 loanTimestamp_,
         bytes calldata orderExtraData_,
         bytes memory signature
-    ) external returns (bool isValid) {
+    ) external virtual returns (bool isValid) {
         /* check that loan is not expired */
         require(block.timestamp < loanTimestamp_ + LOAN_EXPIRATION_TIME, "NFTFilter: Loan expired");
 

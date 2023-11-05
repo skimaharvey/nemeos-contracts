@@ -152,7 +152,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         address factoryOwner_,
         address protocolFeeCollector_,
         uint256 minimalDepositAtCreation_
-    ) external initializer {
+    ) external virtual initializer {
         require(factoryOwner_ != address(0), "PoolFactory: Factory owner cannot be zero address");
         require(
             protocolFeeCollector_ != address(0),
@@ -212,8 +212,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         );
         if (collectionWrapper == address(0)) {
             collectionWrapper = CollateralFactory(collateralFactoryAddress).deployCollateralWrapper(
-                    collection_
-                );
+                collection_
+            );
         }
 
         /* Create pool instance */
