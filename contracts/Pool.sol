@@ -782,19 +782,18 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         dailyInterestRate = newDailyInterestRate;
     }
 
-    function _updateDailyInterestRateOnWithdrawal(uint256 burntShares) internal {
+    function _updateDailyInterestRateOnWithdrawal(uint256 burntShares, address owner) internal {
         uint256 totalShares = totalSupply();
         uint256 currentDailyInterestRate = dailyInterestRate;
 
         uint256 newDailyInterestRate = (totalShares - burntShares) != 0
             ? ((currentDailyInterestRate * totalShares) -
-                (dailyInterestRatePerLender[msg.sender] * burntShares)) /
-                (totalShares - burntShares)
+                (dailyInterestRatePerLender[owner] * burntShares)) / (totalShares - burntShares)
             : 0;
 
         /* If all shares of msg.sender are burnt, set their daily interest rate to 0 */
         if (burntShares == totalShares) {
-            dailyInterestRatePerLender[msg.sender] = 0;
+            dailyInterestRatePerLender[owner] = 0;
         }
 
         /* Update the daily interest rate of the pool */
@@ -828,8 +827,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         address receiver,
         address owner
     ) public virtual override returns (uint256) {
-        require(block.timestamp >= vestingTimePerLender[owner], "Pool: vesting time not respected");
-
         require(shares <= maxRedeem(owner), "ERC4626: redeem more than max");
 
         uint256 assets = previewRedeem(shares);
@@ -846,9 +843,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         address receiver,
         address owner
     ) public override returns (uint256) {
-        /* check that vesting time is respected */
-        require(block.timestamp >= vestingTimePerLender[owner], "Pool: vesting time not respected");
-
         require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
 
         uint256 shares = previewWithdraw(assets);
@@ -938,7 +932,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 assets,
         uint256 shares
     ) internal override {
-        _updateDailyInterestRateOnWithdrawal(balanceOf(owner));
+        /* check that vesting time is respected */
+        require(block.timestamp >= vestingTimePerLender[owner], "Pool: vesting time not respected");
+
+        /* update the vesting time for lender */
+        _updateDailyInterestRateOnWithdrawal(balanceOf(owner), owner);
         // If _asset is ERC777, `transfer` can trigger a reentrancy AFTER the transfer happens through the
         // `tokensReceived` hook. On the other hand, the `tokensToSend` hook, that is triggered before the transfer,
         // calls the vault, which is assumed not malicious.
