@@ -145,13 +145,13 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     /* The minimum amount of time of a loan  */
-    uint256 constant MIN_LOAN_DURATION = 1 days;
+    uint256 public constant MIN_LOAN_DURATION = 1 days;
 
     /* The maximum amount of time of a loan  */
-    uint256 constant MAX_LOAN_DURATION = 90 days;
+    uint256 public constant MAX_LOAN_DURATION = 90 days;
 
     /* The maximum amount of time that can pass between loan payments */
-    uint256 constant MAX_LOAN_REFUND_INTERVAL = 30 days;
+    uint256 public constant MAX_LOAN_REFUND_INTERVAL = 30 days;
 
     /* The protocol fee basis points */
     uint256 public constant PROTOCOL_FEE_BASIS_POINTS = 1500; // 15% of interest fees
