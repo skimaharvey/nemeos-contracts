@@ -50,6 +50,9 @@ describe('PoolFactory', async () => {
     // update collateral factory to poolFactory
     await poolFactoryProxy.updateCollateralFactory(collateralFactory.address);
 
+    // update allowed liquidators to poolFactory
+    await poolFactoryProxy.updateAllowedLiquidators([randomLiquidatorAddress]);
+
     // update pool implementation to poolFactory
     await poolFactoryProxy.updatePoolImplementation(poolImpl.address);
 
@@ -124,11 +127,21 @@ describe('PoolFactory', async () => {
   });
 
   it('should create a new pool and emit PoolCreated event if creator is owner', async () => {
-    const { poolFactoryProxy, randomCollectionAddress, loanToValueInBps, randomNFTFilterAddress } =
-      await buildTestContext();
+    const {
+      poolFactoryProxy,
+      randomCollectionAddress,
+      loanToValueInBps,
+      randomNFTFilterAddress,
+      randomLiquidatorAddress,
+      poolFactoryOwner,
+    } = await buildTestContext();
     const initialDeposit = ethers.utils.parseEther('1');
 
     const [deployer] = await ethers.getSigners();
+
+    const newRandomLiquidatorAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+    // update allowed liquidators to poolFactory
+    await poolFactoryProxy.updateAllowedLiquidators([newRandomLiquidatorAddress]);
 
     const futurePoolAddress = await poolFactoryProxy.connect(deployer).callStatic.createPool(
       randomCollectionAddress,
@@ -137,7 +150,7 @@ describe('PoolFactory', async () => {
       50, // initialDailyInterestRateInBps
       initialDeposit,
       randomNFTFilterAddress,
-      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      newRandomLiquidatorAddress,
       { value: initialDeposit },
     );
 
@@ -148,7 +161,7 @@ describe('PoolFactory', async () => {
       50, // initialDailyInterestRateInBps
       initialDeposit,
       randomNFTFilterAddress,
-      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      newRandomLiquidatorAddress, // randomLiquidatorAddress
       { value: initialDeposit },
     );
 
@@ -269,6 +282,10 @@ describe('PoolFactory', async () => {
       await buildTestContext();
     const initialDeposit = ethers.utils.parseEther('1');
 
+    const newRandomLiquidatorAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+    // update allowed liquidators to poolFactory
+    await poolFactoryProxy.updateAllowedLiquidators([newRandomLiquidatorAddress]);
+
     // Create the first pool
     await poolFactoryProxy.createPool(
       randomCollectionAddress,
@@ -277,7 +294,7 @@ describe('PoolFactory', async () => {
       50, // initialDailyInterestRateInBps
       initialDeposit,
       randomNFTFilterAddress,
-      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      newRandomLiquidatorAddress, // randomLiquidatorAddress
       { value: initialDeposit },
     );
 
@@ -290,7 +307,7 @@ describe('PoolFactory', async () => {
         50, // initialDailyInterestRateInBps
         initialDeposit,
         randomNFTFilterAddress,
-        ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+        newRandomLiquidatorAddress, // randomLiquidatorAddress
         { value: initialDeposit },
       ),
     ).to.be.revertedWith('PoolFactory: Pool already exists');
@@ -362,6 +379,10 @@ describe('PoolFactory', async () => {
     const initialDeposit = ethers.utils.parseEther('1');
     const unsupportedNFTFilter = ethers.utils.hexlify(ethers.utils.randomBytes(20));
 
+    const newRandomLiquidatorAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+    // update allowed liquidators to poolFactory
+    await poolFactoryProxy.updateAllowedLiquidators([newRandomLiquidatorAddress]);
+
     // Attempt to create a pool with an unsupported NFT filter
     await expect(
       poolFactoryProxy.createPool(
@@ -371,7 +392,7 @@ describe('PoolFactory', async () => {
         50, // initialDailyInterestRateInBps
         initialDeposit,
         unsupportedNFTFilter, // unsupported NFT filter
-        ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+        newRandomLiquidatorAddress,
         { value: initialDeposit },
       ),
     ).to.be.revertedWith('PoolFactory: NFT filter not allowed');
@@ -387,6 +408,10 @@ describe('PoolFactory', async () => {
     } = await buildTestContext();
     const initialDeposit = minimalDepositInWei.sub(1); // Less than required
 
+    const newRandomLiquidatorAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+    // update allowed liquidators to poolFactory
+    await poolFactoryProxy.updateAllowedLiquidators([newRandomLiquidatorAddress]);
+
     // Attempt to create a pool with insufficient initial ETH deposit
     await expect(
       poolFactoryProxy.createPool(
@@ -396,7 +421,7 @@ describe('PoolFactory', async () => {
         50, // initialDailyInterestRateInBps
         initialDeposit,
         randomNFTFilterAddress,
-        ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+        newRandomLiquidatorAddress,
         { value: initialDeposit },
       ),
     ).to.be.revertedWith('PoolFactory: ETH deposit required to be equal to initial deposit');
@@ -407,6 +432,10 @@ describe('PoolFactory', async () => {
       await buildTestContext();
     const initialDeposit = ethers.utils.parseEther('1');
 
+    const newRandomLiquidatorAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+    // update allowed liquidators to poolFactory
+    await poolFactoryProxy.updateAllowedLiquidators([newRandomLiquidatorAddress]);
+
     // Attempt to create a pool with non-zero assets address and ETH deposit
     await expect(
       poolFactoryProxy.createPool(
@@ -416,7 +445,7 @@ describe('PoolFactory', async () => {
         50, // initialDailyInterestRateInBps
         initialDeposit,
         randomNFTFilterAddress,
-        ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+        newRandomLiquidatorAddress,
         { value: initialDeposit },
       ),
     ).to.be.revertedWith('Pool: asset should be zero address'); // TODO: currently reverting from Pool directly
@@ -427,6 +456,10 @@ describe('PoolFactory', async () => {
       await buildTestContext();
     const initialDeposit = ethers.utils.parseEther('1');
 
+    const newRandomLiquidatorAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+    // update allowed liquidators to poolFactory
+    await poolFactoryProxy.updateAllowedLiquidators([newRandomLiquidatorAddress]);
+
     // Create a pool
     await poolFactoryProxy.createPool(
       randomCollectionAddress,
@@ -435,7 +468,7 @@ describe('PoolFactory', async () => {
       50, // initialDailyInterestRateInBps
       initialDeposit,
       randomNFTFilterAddress,
-      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      newRandomLiquidatorAddress,
       { value: initialDeposit },
     );
 
@@ -450,6 +483,10 @@ describe('PoolFactory', async () => {
       await buildTestContext();
     const initialDeposit = ethers.utils.parseEther('1');
 
+    const newRandomLiquidatorAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+    // update allowed liquidators to poolFactory
+    await poolFactoryProxy.updateAllowedLiquidators([newRandomLiquidatorAddress]);
+
     const futurePoolAddress = await poolFactoryProxy.callStatic.createPool(
       randomCollectionAddress,
       ethers.constants.AddressZero,
@@ -457,7 +494,7 @@ describe('PoolFactory', async () => {
       50, // initialDailyInterestRateInBps
       initialDeposit,
       randomNFTFilterAddress,
-      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      newRandomLiquidatorAddress,
       { value: initialDeposit },
     );
 
@@ -469,7 +506,7 @@ describe('PoolFactory', async () => {
       50, // initialDailyInterestRateInBps
       initialDeposit,
       randomNFTFilterAddress,
-      ethers.utils.hexlify(ethers.utils.randomBytes(20)), // randomLiquidatorAddress
+      newRandomLiquidatorAddress,
       { value: initialDeposit },
     );
 

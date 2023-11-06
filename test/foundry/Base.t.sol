@@ -99,6 +99,11 @@ abstract contract Base_Test is Test, Constants {
             supportedSettlementManagers // left empty since verifyLoanValidity is overriden
         );
 
+        // set liquidator to PoolFactory
+        address[] memory liquidators = new address[](1);
+        liquidators[0] = address(dutchAuctionLiquidator);
+        PoolFactoryMock(address(poolFactory)).updateAllowedLiquidators(liquidators);
+
         // set NFTFilter to PoolFactory
         address[] memory nftFilters = new address[](1);
         nftFilters[0] = address(nftFilter);

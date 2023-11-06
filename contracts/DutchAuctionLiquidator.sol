@@ -247,7 +247,6 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
     /* Internals */
     /**************************************************************************/
 
-    // TODO: add fuzzing test to make sure we cant have rounding errors
     function _currentPrice(
         uint256 startedAt,
         uint256 endingAt,

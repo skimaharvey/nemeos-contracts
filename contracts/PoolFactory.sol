@@ -17,8 +17,6 @@ import {
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-// todo: restrict liquidator?
-
 /**
  * @title PoolFactory
  * @author Nemeos
@@ -43,6 +41,12 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         address pool,
         address indexed deployer
     );
+
+    /**
+     * @notice Emitted when the allowed liquidators are updated
+     * @param allowedLiquidators New allowed liquidators
+     */
+    event UpdateAllowedLiquidators(address[] allowedLiquidators);
 
     /**
      * @notice Emitted when the allowed loan to value ratios are updated
@@ -98,6 +102,11 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      * @notice Allowed NFT filters
      */
     address[] public allowedNFTFilters;
+
+    /**
+     * @notice Allowed liquidators
+     */
+    address[] public allowedLiquidators;
 
     /**
      * @notice Collateral factory address
@@ -196,6 +205,9 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
 
         /* Check that ltv is allowed */
         require(_verifyLtv(ltvInBPS_), "PoolFactory: LTV not allowed");
+
+        /* Check that liquidator is allowed */
+        require(_verifyLiquidator(liquidator_), "PoolFactory: Liquidator not allowed");
 
         /* Check if pool already exists */
         require(
@@ -335,6 +347,12 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         emit UpdateAllowedLTVs(allowedLTVs_);
     }
 
+    function updateAllowedLiquidators(address[] calldata allowedLiquidators_) external onlyOwner {
+        allowedLiquidators = allowedLiquidators_;
+
+        emit UpdateAllowedLiquidators(allowedLiquidators_);
+    }
+
     function updateAllowedNFTFilters(address[] calldata allowedNFTFilters_) external onlyOwner {
         allowedNFTFilters = allowedNFTFilters_;
 
@@ -369,6 +387,15 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**************************************************************************/
     /* Internals */
     /**************************************************************************/
+    function _verifyLiquidator(address liquidator_) internal view returns (bool) {
+        for (uint256 i = 0; i < allowedLiquidators.length; i++) {
+            if (allowedLiquidators[i] == liquidator_) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     function _verifyLtv(uint256 ltv_) internal view returns (bool) {
         for (uint256 i = 0; i < allowedLTVs.length; i++) {

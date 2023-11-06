@@ -67,11 +67,11 @@ describe('Pool', async () => {
     // deploy liquidator
     const randomLiquidatorAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
     const DutchAuctionLiquidatoFactory = await ethers.getContractFactory('DutchAuctionLiquidator');
-    const dutchAuctionLiquidatorFactory = await DutchAuctionLiquidatoFactory.deploy(
+    const dutchAuctionLiquidator = await DutchAuctionLiquidatoFactory.deploy(
       poolFactoryProxy.address,
       7,
     );
-    await dutchAuctionLiquidatorFactory.deployed();
+    await dutchAuctionLiquidator.deployed();
 
     // deploy Collateral Factory
     const CollateralFactory = await ethers.getContractFactory('CollateralFactory');
@@ -107,6 +107,9 @@ describe('Pool', async () => {
     // update pool implementation to poolFactory
     await poolFactoryProxy.updatePoolImplementation(poolImpl.address);
 
+    // update allowed liquidators to poolFactory
+    await poolFactoryProxy.updateAllowedLiquidators([dutchAuctionLiquidator.address]);
+
     // update allowed ltv to poolFactory
     await poolFactoryProxy.updateAllowedLTVs([loanToValueInBps]);
 
@@ -121,7 +124,7 @@ describe('Pool', async () => {
       initialDailyInterestRateInBps,
       initialDeposit,
       nftFilterAddress,
-      randomLiquidatorAddress,
+      dutchAuctionLiquidator.address,
       { value: minimalDepositAtCreation },
     );
 
@@ -132,7 +135,7 @@ describe('Pool', async () => {
       initialDailyInterestRateInBps,
       initialDeposit,
       nftFilterAddress,
-      dutchAuctionLiquidatorFactory.address,
+      dutchAuctionLiquidator.address,
       { value: minimalDepositAtCreation },
     );
 
@@ -154,7 +157,7 @@ describe('Pool', async () => {
       seaportSettlementManager,
       oracleSigner,
       borrower,
-      dutchAuctionLiquidatorFactory,
+      dutchAuctionLiquidator,
       tokenContract,
       lender1,
       lender2,
@@ -609,7 +612,7 @@ describe('Pool', async () => {
           oracleSigner,
           borrower,
           tokenContract,
-          dutchAuctionLiquidatorFactory,
+          dutchAuctionLiquidator,
           randomUser,
         } = await buildTestContext();
 
@@ -679,9 +682,7 @@ describe('Pool', async () => {
         // liquidate NFT
         await poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address);
 
-        expect(await tokenContract.ownerOf(tokenId)).to.be.equal(
-          dutchAuctionLiquidatorFactory.address,
-        );
+        expect(await tokenContract.ownerOf(tokenId)).to.be.equal(dutchAuctionLiquidator.address);
 
         // Try to liquidate again
         await expect(
@@ -782,7 +783,7 @@ describe('Pool', async () => {
           oracleSigner,
           borrower,
           tokenContract,
-          dutchAuctionLiquidatorFactory,
+          dutchAuctionLiquidator,
           randomUser,
         } = await buildTestContext();
 
@@ -872,7 +873,7 @@ describe('Pool', async () => {
           oracleSigner,
           borrower,
           tokenContract,
-          dutchAuctionLiquidatorFactory,
+          dutchAuctionLiquidator,
           randomUser,
         } = await buildTestContext();
 
@@ -942,9 +943,7 @@ describe('Pool', async () => {
         // liquidate NFT
         await poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address);
 
-        expect(await tokenContract.ownerOf(tokenId)).to.be.equal(
-          dutchAuctionLiquidatorFactory.address,
-        );
+        expect(await tokenContract.ownerOf(tokenId)).to.be.equal(dutchAuctionLiquidator.address);
       });
 
       it('should be able to liquidate NFT if loan is not paid before end of loan', async () => {
@@ -958,7 +957,7 @@ describe('Pool', async () => {
           oracleSigner,
           borrower,
           tokenContract,
-          dutchAuctionLiquidatorFactory,
+          dutchAuctionLiquidator,
           randomUser,
         } = await buildTestContext();
 
@@ -1026,9 +1025,7 @@ describe('Pool', async () => {
         // liquidate NFT
         await poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address);
 
-        expect(await tokenContract.ownerOf(tokenId)).to.be.equal(
-          dutchAuctionLiquidatorFactory.address,
-        );
+        expect(await tokenContract.ownerOf(tokenId)).to.be.equal(dutchAuctionLiquidator.address);
       });
     });
     describe('Refund loan', async () => {
@@ -1906,7 +1903,7 @@ describe('Pool', async () => {
             oracleSigner,
             borrower,
             lender1,
-            dutchAuctionLiquidatorFactory,
+            dutchAuctionLiquidator,
           } = await buildTestContext();
 
           const depositAmount = ethers.utils.parseEther('100');
@@ -2002,14 +1999,14 @@ describe('Pool', async () => {
           await ethers.provider.send('evm_increaseTime', [70 * 24 * 60 * 60]);
           await ethers.provider.send('evm_mine', []);
 
-          const liquidatingPrice = await dutchAuctionLiquidatorFactory.getLiquidationCurrentPrice(
+          const liquidatingPrice = await dutchAuctionLiquidator.getLiquidationCurrentPrice(
             collectionAddress,
             tokenId,
           );
           expect(liquidatingPrice).to.be.equal(0);
 
           // buy NFT for 0
-          const buyTx = await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId);
+          const buyTx = await dutchAuctionLiquidator.buy(collectionAddress, tokenId);
           expect(buyTx)
             .emit(poolProxy, 'LoanLiquidationRefund')
             .withArgs(ethers.utils.getAddress(collectionAddress), tokenId, 0);
@@ -2030,7 +2027,7 @@ describe('Pool', async () => {
             oracleSigner,
             borrower,
             lender1,
-            dutchAuctionLiquidatorFactory,
+            dutchAuctionLiquidator,
           } = await buildTestContext();
 
           const depositAmount = ethers.utils.parseEther('100');
@@ -2113,13 +2110,13 @@ describe('Pool', async () => {
           await ethers.provider.send('evm_increaseTime', [1 * 24 * 60 * 60]);
           await ethers.provider.send('evm_mine', []);
 
-          const liquidatingPrice = await dutchAuctionLiquidatorFactory.getLiquidationCurrentPrice(
+          const liquidatingPrice = await dutchAuctionLiquidator.getLiquidationCurrentPrice(
             collectionAddress,
             tokenId,
           );
 
           // buy NFT for 0
-          const buyTx = await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId, {
+          const buyTx = await dutchAuctionLiquidator.buy(collectionAddress, tokenId, {
             value: liquidatingPrice,
           });
           expect(buyTx)
@@ -2141,7 +2138,7 @@ describe('Pool', async () => {
             oracleSigner,
             borrower,
             lender1,
-            dutchAuctionLiquidatorFactory,
+            dutchAuctionLiquidator,
           } = await buildTestContext();
 
           const depositAmount = ethers.utils.parseEther('100');
@@ -2222,14 +2219,14 @@ describe('Pool', async () => {
           await ethers.provider.send('evm_increaseTime', [5 * 24 * 60 * 60]);
           await ethers.provider.send('evm_mine', []);
 
-          const liquidatingPrice = await dutchAuctionLiquidatorFactory.getLiquidationCurrentPrice(
+          const liquidatingPrice = await dutchAuctionLiquidator.getLiquidationCurrentPrice(
             collectionAddress,
             tokenId,
           );
           expect(liquidatingPrice).to.be.greaterThan(adjustedRemainingLoanAmountWithInterest);
 
           // buy NFT for 0
-          await dutchAuctionLiquidatorFactory.buy(collectionAddress, tokenId, {
+          await dutchAuctionLiquidator.buy(collectionAddress, tokenId, {
             value: liquidatingPrice,
           });
 
