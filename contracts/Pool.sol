@@ -23,6 +23,10 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
+/**
+ * @title Pool
+ * @author Nemeos
+ */
 contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     using MathUpgradeable for uint256;
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -126,11 +130,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**
      * @notice Liquidation
      * @param liquidationStatus Liquidation status
-     * @param collection Collection address
      * @param tokenId Token ID
      * @param startingPrice Starting price
      * @param startingTimeStamp Starting timestamp
      * @param endingTimeStamp Ending timestamp
+     * @param borrower Borrower
      */
     struct Liquidation {
         bool liquidationStatus;

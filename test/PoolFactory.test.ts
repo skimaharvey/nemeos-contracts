@@ -35,6 +35,7 @@ describe('PoolFactory', async () => {
       poolFactoryOwner.address,
       protocolFeeCollector.address,
       minimalDepositInWei,
+      100, // max pool daily interest rate
     );
 
     // deploy Collateral Factory
@@ -525,6 +526,7 @@ describe('PoolFactory', async () => {
         ethers.utils.hexlify(ethers.utils.randomBytes(20)), // New factory owner
         ethers.utils.hexlify(ethers.utils.randomBytes(20)), // New protocol fee collector
         0, // New minimal deposit
+        100, // New max pool daily interest rate
       ),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });

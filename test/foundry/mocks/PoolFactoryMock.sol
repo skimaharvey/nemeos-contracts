@@ -8,7 +8,8 @@ contract PoolFactoryMock is PoolFactory {
     function initialize(
         address factoryOwner_,
         address protocolFeeCollector_,
-        uint256 minimalDepositAtCreation_
+        uint256 minimalDepositAtCreation_,
+        uint256 maxPoolDailyInterestRate_
     ) external override {
         require(factoryOwner_ != address(0), "PoolFactory: Factory owner cannot be zero address");
         require(
@@ -18,5 +19,6 @@ contract PoolFactoryMock is PoolFactory {
         _transferOwnership(factoryOwner_);
         protocolFeeCollector = protocolFeeCollector_;
         minimalDepositAtCreation = minimalDepositAtCreation_;
+        maxPoolDailyInterestRate = maxPoolDailyInterestRate_;
     }
 }

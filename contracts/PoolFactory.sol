@@ -67,6 +67,12 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     event UpdateCollateralFactory(address indexed collateralFactory);
 
     /**
+     * @notice Emitted when the max pool daily interest rate is updated
+     * @param maxPoolDailyInterestRate New max pool daily interest rate
+     */
+    event UpdateMaxPoolDailyInterestRate(uint256 maxPoolDailyInterestRate);
+
+    /**
      * @notice Emitted when the minimal deposit at creation is updated
      * @param minimalDepositAtCreation New minimal deposit at creation
      */
@@ -92,11 +98,10 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      */
     uint256 public minimalDepositAtCreation;
 
-    /* todo: make it updatable */
     /**
      * @notice Max daily rate interest for the pool (in BPS)
      */
-    uint256 public constant MAX_POOL_DAILY_RATE_INTEREST = 100;
+    uint256 public maxPoolDailyInterestRate;
 
     /**
      * @notice Allowed NFT filters
@@ -160,7 +165,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     function initialize(
         address factoryOwner_,
         address protocolFeeCollector_,
-        uint256 minimalDepositAtCreation_
+        uint256 minimalDepositAtCreation_,
+        uint256 maxPoolDailyInterestRate_
     ) external virtual initializer {
         require(factoryOwner_ != address(0), "PoolFactory: Factory owner cannot be zero address");
         require(
@@ -170,6 +176,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         _transferOwnership(factoryOwner_);
         protocolFeeCollector = protocolFeeCollector_;
         minimalDepositAtCreation = minimalDepositAtCreation_;
+        maxPoolDailyInterestRate = maxPoolDailyInterestRate_;
     }
 
     /**************************************************************************/
@@ -243,7 +250,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
             assets_,
             ltvInBPS_,
             initialDailyInterestRateInBPS_,
-            MAX_POOL_DAILY_RATE_INTEREST,
+            maxPoolDailyInterestRate,
             collectionWrapper,
             liquidator_,
             nftFilter_,
@@ -357,6 +364,12 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         allowedNFTFilters = allowedNFTFilters_;
 
         emit UpdateAllowedNFTFilters(allowedNFTFilters_);
+    }
+
+    function updateMaxPoolDailyInterestRate(uint256 maxPoolDailyInterestRate_) external onlyOwner {
+        maxPoolDailyInterestRate = maxPoolDailyInterestRate_;
+
+        emit UpdateMaxPoolDailyInterestRate(maxPoolDailyInterestRate_);
     }
 
     function updateProtocolFeeCollector(address protocolFeeCollector_) external onlyOwner {

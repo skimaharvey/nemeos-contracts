@@ -62,6 +62,7 @@ describe('Pool', async () => {
       poolFactoryOwner.address,
       protocolFeeCollector.address,
       minimalDepositAtCreation,
+      100,
     );
 
     // deploy liquidator

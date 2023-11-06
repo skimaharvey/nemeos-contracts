@@ -61,7 +61,8 @@ abstract contract Base_Test is Test, Constants {
         PoolFactoryMock(address(poolFactory)).initialize(
             users.factoryOwner,
             users.protocolFeeCollector,
-            minimalDepositAtCreation
+            minimalDepositAtCreation,
+            maxPoolDailyInterestRateInBPS
         );
 
         collateralFactory = new CollateralFactory(address(poolFactory));
