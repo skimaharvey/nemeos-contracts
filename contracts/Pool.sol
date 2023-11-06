@@ -296,7 +296,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* Borrower API */
     /**************************************************************************/
 
-    // todo: add settlement manager logic (see with team if need as it is part of the signature and the verification?)
     function buyNFT(
         address collectionAddress_,
         uint256 tokenId_,

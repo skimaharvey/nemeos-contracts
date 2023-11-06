@@ -250,7 +250,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
             protocolFeeCollector
         );
 
-        /* should deposit in the Pool in order to avoid inflation attack todo: double check safety */
+        /* should deposit in the Pool in order to avoid inflation attack  */
 
         if (assets_ == address(0)) {
             require(
