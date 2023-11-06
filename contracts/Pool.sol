@@ -123,6 +123,24 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /* Structs */
     /**************************************************************************/
 
+    /**
+     * @notice Liquidation
+     * @param liquidationStatus Liquidation status
+     * @param collection Collection address
+     * @param tokenId Token ID
+     * @param startingPrice Starting price
+     * @param startingTimeStamp Starting timestamp
+     * @param endingTimeStamp Ending timestamp
+     */
+    struct Liquidation {
+        bool liquidationStatus;
+        uint256 tokenId;
+        uint256 startingPrice;
+        uint256 startingTimeStamp;
+        uint256 endingTimeStamp;
+        address borrower;
+    }
+
     struct Loan {
         address borrower;
         address collection; // to be removed
@@ -198,6 +216,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
     /* The daily interest rate per lender */
     mapping(address => uint256) public dailyInterestRatePerLender;
+
+    /* Liquidations */
+    mapping(bytes32 => Liquidation) public liquidations;
 
     /* Loans */
     mapping(bytes32 => Loan) public loans;
@@ -463,6 +484,17 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* transfer NFT to liquidator */
         IERC721(collectionAddress).transferFrom(address(this), liquidator, tokenId_);
 
+        /* Create liquidation */
+        liquidations[loanHash] = Liquidation({
+            liquidationStatus: true,
+            tokenId: tokenId_,
+            startingPrice: loan.amountAtStart,
+            startingTimeStamp: block.timestamp,
+            endingTimeStamp: block.timestamp +
+                ICollateralLiquidator(liquidator).liquidationDuration(),
+            borrower: borrower_
+        });
+
         /* call liquidator todo: check with team what price we use as starting liquidation price */
         ICollateralLiquidator(liquidator).liquidate(
             collectionAddress,
@@ -488,6 +520,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         Loan memory loan = retrieveLoan(tokenId_, borrower_);
 
         bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
+
+        /* delete liquidation */
+        delete liquidations[loanHash];
 
         /* remove the loan from the ongoing loans */
         _ongoingLiquidations.remove(loanHash);
@@ -652,6 +687,22 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         return amountOwedWithInterest;
     }
 
+    function _currentLiquidatedPrice(
+        uint256 startingTimeStamp,
+        uint256 endingTimeStamp,
+        uint256 startingPrice
+    ) internal view returns (uint256) {
+        uint256 duration = endingTimeStamp - startingTimeStamp;
+        uint256 timeElapsed = block.timestamp - startingTimeStamp;
+
+        uint256 priceDrop = (startingPrice * timeElapsed) / duration;
+
+        if (priceDrop >= startingPrice) {
+            return 0;
+        }
+        return startingPrice - priceDrop;
+    }
+
     function _unwrapNFT(uint256 tokenId_, address borrower_) internal {
         /* burn wrapped NFT */
         ICollateralWrapper(wrappedNFT).burn(tokenId_);
@@ -813,8 +864,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
      */
     function maxWithdrawAvailable(address owner) public view returns (uint256) {
         uint256 expectedBalance = _convertToAssets(balanceOf(owner), MathUpgradeable.Rounding.Down);
-        if (expectedBalance >= totalAssets()) {
-            return totalAssets();
+        if (expectedBalance >= address(this).balance) {
+            return address(this).balance;
         } else {
             return expectedBalance;
         }
@@ -839,14 +890,18 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         }
 
         /* calculate the total amount owed from onGoingLiquidations */
-        //TODO: review logic here
+
         uint256 totatOnGoingLiquidationsAmountOwed;
         uint256 numberOfOnGoingLiquidations = _ongoingLiquidations.length();
+
         for (uint256 i = 0; i < numberOfOnGoingLiquidations; i++) {
             bytes32 loanHash = _ongoingLiquidations.at(i);
-            Loan memory loan = loans[loanHash];
-            totatOnGoingLiquidationsAmountOwed += (loan.amountOwedWithInterest -
-                (loan.remainingNumberOfInstallments * loan.interestAmountPerPaiement));
+            Liquidation memory liquidation = liquidations[loanHash];
+            totatOnGoingLiquidationsAmountOwed += _currentLiquidatedPrice(
+                liquidation.startingTimeStamp,
+                liquidation.endingTimeStamp,
+                liquidation.startingPrice
+            );
         }
 
         /* equals actual balance + sum of amountOwed in onGoingLoans + sum of amountOwed in onGoingLiquidations */

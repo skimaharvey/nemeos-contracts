@@ -83,7 +83,7 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
     /**
      * @notice Liquidation duration
      */
-    uint64 public _liquidationDuration = 15 days;
+    uint64 public liquidationDuration = 15 days;
 
     /**
      * @notice Address of the pools factory
@@ -107,7 +107,7 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
             liquidationDurationInDays_ > 0,
             "DutchAuctionliquidatedLiquidator: Invalid liquidation duration"
         );
-        _liquidationDuration = liquidationDurationInDays_ * 1 days;
+        liquidationDuration = liquidationDurationInDays_ * 1 days;
         poolsFactory = poolsFactory_;
     }
 
@@ -147,7 +147,7 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
             tokenId: liquidatedTokenId_,
             startingPrice: startingPrice_,
             startingTimeStamp: block.timestamp,
-            endingTimeStamp: block.timestamp + _liquidationDuration,
+            endingTimeStamp: block.timestamp + liquidationDuration,
             borrower: borrower_
         });
 

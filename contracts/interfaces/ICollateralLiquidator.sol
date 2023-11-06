@@ -8,4 +8,6 @@ interface ICollateralLiquidator {
         uint256 startingPrice,
         address borrower
     ) external;
+
+    function liquidationDuration() external view returns (uint256);
 }
