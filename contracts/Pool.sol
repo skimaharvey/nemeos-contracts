@@ -495,7 +495,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             borrower: borrower_
         });
 
-        /* call liquidator todo: check with team what price we use as starting liquidation price */
+        /* call liquidator  */
         ICollateralLiquidator(liquidator).liquidate(
             collectionAddress,
             tokenId_,
@@ -553,12 +553,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /** @dev Allows to retrieve the ongoing loans.
      *  @return onGoingLoansArray The array of ongoing loans.
      */
-    // todo: modify to return a Loan struct array
-    function onGoingLoans() external view returns (bytes32[] memory) {
+    function onGoingLoans() external view returns (Loan[] memory) {
         uint256 length = _ongoingLoans.length();
-        bytes32[] memory onGoingLoansArray = new bytes32[](length);
+        Loan[] memory onGoingLoansArray = new Loan[](length);
         for (uint256 i = 0; i < length; i++) {
-            onGoingLoansArray[i] = _ongoingLoans.at(i);
+            bytes32 loanHash = _ongoingLoans.at(i);
+            onGoingLoansArray[i] = loans[loanHash];
         }
         return onGoingLoansArray;
     }
@@ -932,7 +932,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             );
     }
 
-    // Todo: add the vesting logic
     function _withdraw(
         address caller,
         address receiver,
