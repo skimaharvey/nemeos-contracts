@@ -763,14 +763,14 @@ describe('Pool', async () => {
 
         const thirthyDaysInSeconds = 20 * 24 * 60 * 60;
 
-        // advance blockchain to less than next paiement which is 30 days
+        // advance blockchain to less than next payment which is 30 days
         await ethers.provider.send('evm_increaseTime', [thirthyDaysInSeconds - 1]);
         await ethers.provider.send('evm_mine', []);
 
         // try liquidating NFT
         await expect(
           poolProxy.connect(randomUser).liquidateLoan(tokenId, borrower.address),
-        ).to.be.revertedWith('Pool: loan paiement not late');
+        ).to.be.revertedWith('Pool: loan payment not late');
       });
 
       it('should revert when trying to liquidate a loan that is already paid back', async () => {
@@ -863,7 +863,7 @@ describe('Pool', async () => {
         expect(await tokenContract.ownerOf(tokenId)).to.be.equal(borrower.address);
       });
 
-      it('should be able to liquidate NFT if loan is not paid before end of next paiement (30 days)', async () => {
+      it('should be able to liquidate NFT if loan is not paid before end of next payment (30 days)', async () => {
         const {
           poolProxy,
           impersonatedWhaleSigner,
@@ -2323,10 +2323,10 @@ describe('Pool', async () => {
       // fetch loan info
       const loan = await poolProxy.retrieveLoan(tokenId, borrower.address);
 
-      // expect protocol fees to be 15% of the loan.interestAmountPerPaiement
-      const protocolFeesCalculated = loan.interestAmountPerPaiement.mul(15).div(100);
+      // expect protocol fees to be 15% of the loan.interestAmountPerPayment
+      const protocolFeesCalculated = loan.interestAmountPerPayment.mul(15).div(100);
 
-      // expect protocol fees to be 15% of the loan.interestAmountPerPaiement
+      // expect protocol fees to be 15% of the loan.interestAmountPerPayment
       const totalFeesCollectedInShares = await poolProxy.balanceOf(protocolFeeCollector.address);
       const totalFeesCollectedInAssets = await poolProxy.previewRedeem(totalFeesCollectedInShares);
 

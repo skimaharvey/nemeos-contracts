@@ -151,8 +151,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         uint256 tokenID; // to be removed
         uint256 amountAtStart;
         uint256 amountOwedWithInterest;
-        uint256 nextPaiementAmount;
-        uint256 interestAmountPerPaiement;
+        uint256 nextPaymentAmount;
+        uint256 interestAmountPerPayment;
         uint256 loanDuration;
         uint256 startTime;
         uint256 endTime;
@@ -389,13 +389,13 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         require(loan.amountOwedWithInterest > 0, "Pool: loan already paid back");
 
         /* check if msg.value is equal to next payment amount */
-        require(msg.value == loan.nextPaiementAmount, "Pool: msg.value not equal to next payment");
+        require(msg.value == loan.nextPaymentAmount, "Pool: msg.value not equal to next payment");
 
         /* update the loan */
         loan.amountOwedWithInterest -= msg.value;
 
         /* calculate protocol fees */
-        uint256 protocolFees = (loan.interestAmountPerPaiement * PROTOCOL_FEE_BASIS_POINTS) /
+        uint256 protocolFees = (loan.interestAmountPerPayment * PROTOCOL_FEE_BASIS_POINTS) /
             BASIS_POINTS;
 
         /* mint shares to protocolFeeCollector */
@@ -411,7 +411,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             loan.nextPaymentTime = block.timestamp;
 
             /* next payment amount is 0 */
-            loan.nextPaiementAmount = 0;
+            loan.nextPaymentAmount = 0;
 
             /* close the loan */
             loan.isClosed = true;
@@ -431,9 +431,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             );
         } else {
             loan.nextPaymentTime += MAX_LOAN_REFUND_INTERVAL;
-            loan.nextPaiementAmount = loan.amountOwedWithInterest <= loan.nextPaiementAmount
+            loan.nextPaymentAmount = loan.amountOwedWithInterest <= loan.nextPaymentAmount
                 ? loan.amountOwedWithInterest
-                : loan.nextPaiementAmount;
+                : loan.nextPaymentAmount;
 
             /* emit LoanPartiallyRefunded event */
             emit LoanPartiallyRefunded(
@@ -441,7 +441,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
                 loan.tokenID,
                 loan.borrower,
                 msg.value,
-                loan.remainingNumberOfInstallments * loan.nextPaiementAmount
+                loan.remainingNumberOfInstallments * loan.nextPaymentAmount
             );
         }
 
@@ -449,7 +449,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         loans[loanHash] = loan;
     }
 
-    /** @dev Allows to liquidate a loan when paiement is late.
+    /** @dev Allows to liquidate a loan when payment is late.
      * @param tokenId_ The ID of the NFT.
      * @param borrower_ The address of the borrower.
      */
@@ -463,7 +463,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         require(!loan.isClosed && !loan.isInLiquidation, "Pool: loan is closed");
 
         /* check if loan is expired */
-        require(block.timestamp >= loan.nextPaymentTime, "Pool: loan paiement not late");
+        require(block.timestamp >= loan.nextPaymentTime, "Pool: loan payment not late");
 
         /* check if loan is not paid back */
         require(loan.amountOwedWithInterest > 0, "Pool: loan already paid back");
@@ -539,8 +539,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* store the loan */
         loans[loanHash] = loan;
 
-        /* take protocol fee out of the interestAmountPerPaiement * number of installments remaining * protocolFee */
-        uint256 protocolFees = (loan.interestAmountPerPaiement *
+        /* take protocol fee out of the interestAmountPerPayment * number of installments remaining * protocolFee */
+        uint256 protocolFees = (loan.interestAmountPerPayment *
             loan.remainingNumberOfInstallments *
             PROTOCOL_FEE_BASIS_POINTS) / BASIS_POINTS;
 
@@ -582,9 +582,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
      * @param remainingLoanAmount_ The remaining amount of the loan.
      * @param loanDurationInDays_ The duration of the loan in days.
      * @return adjustedRemainingLoanAmountWithInterest The total amount to be paid back with interest.
-     * @return interestAmount The amount of interest to be paid back per paiement.
-     * @return nextPaiementAmount The amount to be paid back per paiement.
-     * @return numberOfInstallments The number of paiements installments.
+     * @return interestAmount The amount of interest to be paid back per payment.
+     * @return nextPaymentAmount The amount to be paid back per payment.
+     * @return numberOfInstallments The number of payments installments.
      */
     function calculateLoanPrice(
         uint256 remainingLoanAmount_,
@@ -592,7 +592,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     ) public view returns (uint256, uint256, uint256, uint160) {
         require(remainingLoanAmount_ <= address(this).balance, "Pool: not enough assets");
 
-        /* number of paiements installments */
+        /* number of payments installments */
         uint256 numberOfInstallments = loanDurationInDays_ % (MAX_LOAN_REFUND_INTERVAL / 1 days) ==
             0
             ? loanDurationInDays_ / (MAX_LOAN_REFUND_INTERVAL / 1 days)
@@ -603,17 +603,17 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             dailyInterestRate *
             loanDurationInDays_) / BASIS_POINTS;
 
-        /* calculate the interest amount per paiement */
-        uint256 interestAmountPerPaiement = totalInterestAmount % numberOfInstallments == 0
+        /* calculate the interest amount per payment */
+        uint256 interestAmountPerPayment = totalInterestAmount % numberOfInstallments == 0
             ? totalInterestAmount / numberOfInstallments
             : (totalInterestAmount / numberOfInstallments) + 1;
 
         /* calculate the total amount to be paid back with interest */
         uint256 adjustedRemainingLoanAmountWithInterest = remainingLoanAmount_ +
-            interestAmountPerPaiement *
+            interestAmountPerPayment *
             numberOfInstallments;
 
-        uint256 nextPaiementAmount = adjustedRemainingLoanAmountWithInterest %
+        uint256 nextPaymentAmount = adjustedRemainingLoanAmountWithInterest %
             numberOfInstallments ==
             0
             ? adjustedRemainingLoanAmountWithInterest / numberOfInstallments
@@ -622,8 +622,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         /* calculate the amount to be paid back */
         return (
             adjustedRemainingLoanAmountWithInterest,
-            interestAmountPerPaiement,
-            nextPaiementAmount,
+            interestAmountPerPayment,
+            nextPaymentAmount,
             uint160(numberOfInstallments)
         );
     }
@@ -643,8 +643,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         (
             uint256 amountOwedWithInterest,
-            uint256 interestAmountPerPaiement,
-            uint256 nextPaiementAmount,
+            uint256 interestAmountPerPayment,
+            uint256 nextPaymentAmount,
             uint160 numberOfInstallments
         ) = calculateLoanPrice(remainingLoanAmount_, loanDurationInDays);
 
@@ -668,8 +668,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             tokenID: tokenId_,
             amountAtStart: amountOwedWithInterest + msg.value,
             amountOwedWithInterest: amountOwedWithInterest,
-            nextPaiementAmount: nextPaiementAmount,
-            interestAmountPerPaiement: interestAmountPerPaiement,
+            nextPaymentAmount: nextPaymentAmount,
+            interestAmountPerPayment: interestAmountPerPayment,
             loanDuration: loanDuration_,
             startTime: block.timestamp,
             endTime: endTime,
@@ -883,7 +883,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             bytes32 loanHash = _ongoingLoans.at(i);
             Loan memory loan = loans[loanHash];
             totatOnGoingLoansAmountOwed += (loan.amountOwedWithInterest -
-                (loan.remainingNumberOfInstallments * loan.interestAmountPerPaiement));
+                (loan.remainingNumberOfInstallments * loan.interestAmountPerPayment));
         }
 
         /* calculate the total amount owed from onGoingLiquidations */
