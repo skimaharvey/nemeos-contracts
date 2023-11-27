@@ -1,10 +1,7 @@
 import { ethers } from 'hardhat';
 
-const ADDRESS_ORACLE = '0x1BBcaB52070b25CF716C32e53791146A7525cddE';
-const SETTLEMENT_MANAGERS = [
-  '0xF7eea5164fA57a0dbC2eFBdf18e09062bebCCa4b',
-  '0x8578808D6C5d2BE3396dfA647B661D56119F7cec',
-];
+const ADDRESS_ORACLE = '0x44e86DAa852673315e757F1C866fa125973a43f4';
+const SETTLEMENT_MANAGERS = ['0xDA5A3aFD2948b11026DA2f5fa76588aC0893a610'];
 
 async function main() {
   const [deployer] = await ethers.getSigners();

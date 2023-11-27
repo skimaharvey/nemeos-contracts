@@ -1,7 +1,7 @@
 import { ethers } from 'hardhat';
 
-const POOL_FACTORY = '0x6F9B857eDc7De1d2ceA2f3a5e4F2Ad7F2ba40760';
-const POOL_IMPLEMENTATION = '0xBD5184EcB49d98f3d306E50Fa68Ca6fc32EE843e';
+const POOL_FACTORY = '0xfa4B90DcE50d32745661b7baad44a209b33200cE';
+const POOL_IMPLEMENTATION = '0xcB8f844Ef36C0c89291fd59920Fc40aa80BBAd0B';
 
 async function main() {
   const poolFactory = await ethers.getContractAt('PoolFactory', POOL_FACTORY);

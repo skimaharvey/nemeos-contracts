@@ -1,15 +1,15 @@
 import { ethers } from 'hardhat';
 
-const POOL_FACTORY = '0x6F9B857eDc7De1d2ceA2f3a5e4F2Ad7F2ba40760';
+const POOL_FACTORY = '0xfa4B90DcE50d32745661b7baad44a209b33200cE';
 
 // constants to be set by the user
-const COLLECTION_ADDRESS = '0xdaa3812b8fd34d01711105a6dfb669c50ab8fee3';
+const COLLECTION_ADDRESS = '0xbdcf4b6693e344115b951c4796e8622a66cdb728';
 const POOL_CURRENCY = ethers.constants.AddressZero; // ETH
 const POOL_LTV_BPS = 2_000; // 20%
 const INITIAL_DAILY_RATES = 5; // 0.05%
 const INITIAL_DEPOSIT = ethers.utils.parseEther('0.1'); // 0.1 ETH
-const NFT_FILTER = '0x6B22E1A41a78f47410898f37Ede9afBf17188616';
-const LIQUIDATOR = '0x3717e41333C490B9D38779a4155af7D83960951a';
+const NFT_FILTER = '0xCaaCaf88244cDb7835568DE966CeBA6657fe02AC';
+const LIQUIDATOR = '0xa9b6D3134A629E3181586e22E2737200fa1c734e';
 
 async function main() {
   const poolFactory = await ethers.getContractAt('PoolFactory', POOL_FACTORY);

@@ -1,8 +1,11 @@
 import { ethers } from 'hardhat';
 
 async function main() {
+  const gasPrice = await ethers.provider.getGasPrice();
   const PoolFactoryFactory = await ethers.getContractFactory('PoolFactory');
-  const PoolFactory = await PoolFactoryFactory.deploy();
+  const PoolFactory = await PoolFactoryFactory.deploy({
+    gasPrice: gasPrice.add(ethers.utils.parseUnits('30', 'gwei')),
+  });
   await PoolFactory.deployed();
 
   console.log('PoolFactory deployed to:', PoolFactory.address);

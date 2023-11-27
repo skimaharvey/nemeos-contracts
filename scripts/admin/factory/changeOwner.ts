@@ -1,12 +1,11 @@
 import { ethers } from 'hardhat';
 
 const POOL_FACTORY = '0xfa4B90DcE50d32745661b7baad44a209b33200cE';
-const COLLATERAL_FACTORY = '0x6F2C029a39b8d5eEDE4799adc6f45DB662a3DA84';
+const NEW_OWNER = '0x76778AeDe1Afc5031FAb1C761C41130F31415424';
 
 async function main() {
   const poolFactory = await ethers.getContractAt('PoolFactory', POOL_FACTORY);
-  const tx = await poolFactory.updateCollateralFactory(COLLATERAL_FACTORY);
-  await tx.wait(1);
+  const tx = await poolFactory.transferOwnership(NEW_OWNER);
   console.log('tx:', tx);
 }
 
