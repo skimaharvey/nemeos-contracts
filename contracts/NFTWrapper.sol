@@ -10,7 +10,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title Collateral Wrapper
  * @author Nemeos
  */
-contract CollateralWrapper is ERC721, ReentrancyGuard, Initializable {
+contract NFTWrapper is ERC721, ReentrancyGuard, Initializable {
     /**************************************************************************/
     /* State */
     /**************************************************************************/
