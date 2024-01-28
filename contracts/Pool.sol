@@ -897,12 +897,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         for (uint256 i = 0; i < numberOfOnGoingLoans; i++) {
             bytes32 loanHash = _ongoingLoans.at(i);
             Loan memory loan = _loans[loanHash];
-            totatOnGoingLoansAmountOwed += (loan.amountOwedWithInterest -
-                (loan.remainingNumberOfInstallments * loan.interestAmountPerPayment));
+            totatOnGoingLoansAmountOwed += loan.amountOwedWithInterest;
         }
 
         /* calculate the total amount owed from onGoingLiquidations */
-
         uint256 totatOnGoingLiquidationsAmountOwed;
         uint256 numberOfOnGoingLiquidations = _ongoingLiquidations.length();
 
