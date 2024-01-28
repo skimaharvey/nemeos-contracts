@@ -1,27 +1,23 @@
 # Nemeos Smart Contracts
 
-## Install
+## Introduction
 
-Download the project and its submodules
+This protocol includes several contracts:
 
-```bash
-git clone --recurse-submodules git@github.com:nemeos/contracts.git
-```
+- [Pool Factory](./contracts/Lending/PoolFactory.sol): Manages the creation of Pools.
+- [Pool](./contracts/Lending/Pool.sol): A 4626 Native Token Vault handling liquidity.
+- [NFTFilter](./contracts/Lending/NFTFilter.sol): Ensures transactions are signed by an offchain oracle.
+- [NFTWrapper Factory](./contracts/Lending/NFTWrapperFactory.sol): Mints NFT wrappers post-loan.
+- [NFTWrapper](./contracts/Lending/NFTWrapper.sol): The wrapper itself.
+- [SeaportSettlementManager](./contracts/Lending/SeaportSettlementManager.sol).
+- [DutchAuctionLiquidation](./contracts/Lending/DutchAuctionLiquidation.sol): Liquidates NFTs in the event of a paiment default or if the borrower wishes to liquidate their loan.
 
-If you already cloned but forgot to load the submodules, you can load them with
+The process allows anyone to create a Pool for a specific collection at a designated `minimalDepositRequested`.
+Liquidity providers deposit funds, receiving shares in return, and vote on lending rates. Borrowers can use this liquidity to purchase an NFT from the specified collection (acquired via Seaport through the `SeaportSettlementManager`). They must repay their loan within a set interval (30 days). Upon purchase, a Wrapper NFT is minted, which is burnt upon full repayment, and the actual NFT is transferred to the borrower.
 
-```bash
-git submodule update --init --recursive
-```
+If borrower fails to repay, the Wrapper will be burnt and the NFT will be send to Dutch Auction Liquidation.
 
-## Build
+## Design Decisions
 
-```bash
-cd lib/seaport
-npm install -D
-npm run build
-
-cd ../../
-npm install -D
-npx hardhat compile
-```
+- We are aware that the protocol is not fully compliant with the ERC-4626 standard as we wanted to use native tokens but still found it useful to implement the standard as we might in the future accept other tokens and could as well still use the logic of shares that comes with vaults.
+- Each NFT
