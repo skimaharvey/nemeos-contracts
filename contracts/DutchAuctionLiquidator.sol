@@ -2,6 +2,7 @@
 pragma solidity 0.8.20;
 
 // interfaces
+import {IDutchAuctionLiquidator} from "./interfaces/IDutchAuctionLiquidator.sol";
 import {IPoolFactory} from "./interfaces/IPoolFactory.sol";
 import {IPool} from "./interfaces/IPool.sol";
 
@@ -14,85 +15,22 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title Dutch Auction liquidated Liquidator
  * @author Nemeos
  */
-contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
-    /**************************************************************************/
-    /* Structures */
-    /**************************************************************************/
-
-    /**
-     * @notice Liquidation
-     * @param pool Pool address
-     * @param liquidationStatus Liquidation status
-     * @param collection Collection address
-     * @param tokenId Token ID
-     * @param startingPrice Starting price
-     * @param startingTimeStamp Starting timestamp
-     * @param endingTimeStamp Ending timestamp
-     */
-    struct Liquidation {
-        address pool;
-        bool liquidationStatus;
-        address collection;
-        uint256 tokenId;
-        uint256 startingPrice;
-        uint256 startingTimeStamp;
-        uint256 endingTimeStamp;
-        address borrower;
-    }
-
-    /**************************************************************************/
-    /* Events */
-    /**************************************************************************/
-
-    /**
-     * @notice Emitted when an liquidation is created
-     * @param pool Pool address
-     * @param liquidatedToken liquidated token
-     * @param liquidatedTokenId liquidated token ID
-     * @param borrower Borrower of liquidated NFT
-     * @param startingPrice Starting price
-     */
-    event LiquidationStarted(
-        address indexed pool,
-        address indexed liquidatedToken,
-        uint256 liquidatedTokenId,
-        address indexed borrower,
-        uint256 startingPrice
-    );
-
-    /**
-     * @notice Emitted when an liquidation is ended and liquidated is claimed by winner
-     * @param liquidatedToken liquidated token
-     * @param liquidatedTokenId liquidated token ID
-     * @param borrower Borrower of liquidated NFT
-     * @param winner Winner of liquidation
-     * @param winningPrice Winning price
-     */
-    event LiquidationEnded(
-        address indexed liquidatedToken,
-        uint256 liquidatedTokenId,
-        address indexed borrower,
-        address indexed winner,
-        uint256 winningPrice
-    );
-
+contract DutchAuctionLiquidator is ReentrancyGuard, Initializable, IDutchAuctionLiquidator {
     /**************************************************************************/
     /* State */
     /**************************************************************************/
 
     /**
-     * @notice Liquidation duration
+     * @dev see {IDutchAuctionLiquidator-LIQUIDATION_DURATION}
      */
-    uint64 public liquidationDuration = 15 days;
+    uint64 public immutable LIQUIDATION_DURATION;
 
     /**
-     * @notice Address of the pools factory
+     * @dev see {IDutchAuctionLiquidator-POOLS_FACTORY}
      */
-    address public poolsFactory;
+    address public POOLS_FACTORY;
 
-    /**
-     * @dev NFT liquidation
-     */
+    /* stores liquidations */
     mapping(address => mapping(uint256 => Liquidation)) private _liquidations;
 
     /**************************************************************************/
@@ -107,8 +45,8 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
             liquidationDurationInDays_ > 0,
             "DutchAuctionliquidatedLiquidator: Invalid liquidation duration"
         );
-        liquidationDuration = liquidationDurationInDays_ * 1 days;
-        poolsFactory = poolsFactory_;
+        LIQUIDATION_DURATION = liquidationDurationInDays_ * 1 days;
+        POOLS_FACTORY = poolsFactory_;
     }
 
     /**************************************************************************/
@@ -116,13 +54,7 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
     /**************************************************************************/
 
     /**
-     * @notice Start a liquidation
-     *
-     * Emits a {LiquidationStarted} event.
-     *
-     * @param liquidatedToken_ Liquidated token
-     * @param liquidatedTokenId_ Liquidated token ID
-     * @param startingPrice_ Starting price
+     * @dev see {IDutchAuctionLiquidator-liquidate}
      */
     function liquidate(
         address liquidatedToken_,
@@ -131,7 +63,7 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
         address borrower_
     ) external nonReentrant {
         /* Check if caller is a pool */
-        require(IPoolFactory(poolsFactory).isPool(msg.sender), "Liquidator: Caller is not a pool");
+        require(IPoolFactory(POOLS_FACTORY).isPool(msg.sender), "Liquidator: Caller is not a pool");
 
         /* Check if liquidator owns the tokenId */
         require(
@@ -147,7 +79,7 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
             tokenId: liquidatedTokenId_,
             startingPrice: startingPrice_,
             startingTimeStamp: block.timestamp,
-            endingTimeStamp: block.timestamp + liquidationDuration,
+            endingTimeStamp: block.timestamp + LIQUIDATION_DURATION,
             borrower: borrower_
         });
 
@@ -162,12 +94,7 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
     }
 
     /**
-     * @notice Buy a liquidation
-     *
-     * Emits a {LiquidationEnded} event.
-     *
-     * @param liquidatedToken liquidated token
-     * @param liquidatedTokenId liquidated token ID
+     * @dev see {IDutchAuctionLiquidator-buy}
      */
     function buy(address liquidatedToken, uint256 liquidatedTokenId) external payable nonReentrant {
         /* Get liquidation */
@@ -212,10 +139,7 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
     /**************************************************************************/
 
     /**
-     * @notice Get liquidation
-     * @param liquidatedToken liquidated token
-     * @param liquidatedTokenId liquidated token ID
-     * @return Liquidation
+     * @dev see {IDutchAuctionLiquidator-getLiquidation}
      */
     function getLiquidation(
         address liquidatedToken,
@@ -225,10 +149,7 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable {
     }
 
     /**
-     * @notice Get current price of liquidation
-     * @param liquidatedToken liquidated token
-     * @param liquidatedTokenId liquidated token ID
-     * @return Current price
+     * @dev see {IDutchAuctionLiquidator-getLiquidationCurrentPrice}
      */
     function getLiquidationCurrentPrice(
         address liquidatedToken,
