@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
-import {ICollateralLiquidator} from "../interfaces/ICollateralLiquidator.sol";
+pragma solidity 0.8.20;
+import {IDutchAuctionLiquidator} from "../interfaces/IDutchAuctionLiquidator.sol";
 
 contract PoolMock {
     event LoanLiquidationRefund(address indexed token, uint256 indexed tokenId, uint256 amount);
@@ -14,7 +14,7 @@ contract PoolMock {
     }
 
     function liquidateLoan(uint256 tokenId_, address borrower_) external {
-        ICollateralLiquidator(liquidator).liquidate(
+        IDutchAuctionLiquidator(liquidator).liquidate(
             collectionAddress,
             tokenId_,
             1 ether,

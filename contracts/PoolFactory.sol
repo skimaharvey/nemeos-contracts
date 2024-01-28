@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.19;
+pragma solidity 0.8.20;
 
 // Contracts
 import {CollateralFactory} from "./CollateralFactory.sol";
 
 // interfaces
 import {IPool} from "./interfaces/IPool.sol";
-import {ICollateralWrapper} from "./interfaces/ICollateralWrapper.sol";
+import {INFTWrapper} from "./interfaces/INFTWrapper.sol";
 
 // libraries
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -68,9 +68,9 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
 
     /**
      * @notice Emitted when the max pool daily interest rate is updated
-     * @param maxPoolDailyInterestRate New max pool daily interest rate
+     * @param maxPoolDailyLendingRateInBPS New max pool daily interest rate
      */
-    event UpdateMaxPoolDailyInterestRate(uint256 maxPoolDailyInterestRate);
+    event UpdatemaxPoolDailyLendingRateInBPS(uint256 maxPoolDailyLendingRateInBPS);
 
     /**
      * @notice Emitted when the minimal deposit at creation is updated
@@ -101,7 +101,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**
      * @notice Max daily rate interest for the pool (in BPS)
      */
-    uint256 public maxPoolDailyInterestRate;
+    uint256 public maxPoolDailyLendingRateInBPS;
 
     /**
      * @notice Allowed NFT filters
@@ -166,7 +166,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         address factoryOwner_,
         address protocolFeeCollector_,
         uint256 minimalDepositAtCreation_,
-        uint256 maxPoolDailyInterestRate_
+        uint256 maxPoolDailyLendingRateInBPS_
     ) external virtual initializer {
         require(factoryOwner_ != address(0), "PoolFactory: Factory owner cannot be zero address");
         require(
@@ -176,7 +176,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         _transferOwnership(factoryOwner_);
         protocolFeeCollector = protocolFeeCollector_;
         minimalDepositAtCreation = minimalDepositAtCreation_;
-        maxPoolDailyInterestRate = maxPoolDailyInterestRate_;
+        maxPoolDailyLendingRateInBPS = maxPoolDailyLendingRateInBPS_;
     }
 
     /**************************************************************************/
@@ -186,8 +186,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**
      * Create a 1167 proxy pool instance
      * @param collection_ Collection address
-     * @param assets_ Assets address for the pool (address(0) for ETH)
-     * @param ltvInBPS_ Loan to value ratio
+     * @param minimalDepositInBPS_ Loan to value ratio
      * @param initialDailyInterestRateInBPS_ Initial daily interest rate
      * @param nftFilter_ NFT filter address
      * @param liquidator_ Liquidator address
@@ -195,8 +194,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
      */
     function createPool(
         address collection_,
-        address assets_,
-        uint256 ltvInBPS_,
+        uint256 minimalDepositInBPS_,
         uint256 initialDailyInterestRateInBPS_,
         uint256 initialDeposit_,
         address nftFilter_,
@@ -211,15 +209,21 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         require(poolImplementation != address(0), "PoolFactory: Pool implementation not set");
 
         /* Check that ltv is allowed */
-        require(_verifyLtv(ltvInBPS_), "PoolFactory: LTV not allowed");
+        require(_verifyLtv(minimalDepositInBPS_), "PoolFactory: LTV not allowed");
 
         /* Check that liquidator is allowed */
         require(_verifyLiquidator(liquidator_), "PoolFactory: Liquidator not allowed");
 
         /* Check if pool already exists */
         require(
-            poolByCollectionAndLtv[collection_][ltvInBPS_] == address(0),
+            poolByCollectionAndLtv[collection_][minimalDepositInBPS_] == address(0),
             "PoolFactory: Pool already exists"
+        );
+
+        /* should deposit in the Pool in order to avoid inflation attack  */
+        require(
+            msg.value >= minimalDepositAtCreation && msg.value == initialDeposit_,
+            "PoolFactory: ETH deposit required to be equal to initial deposit"
         );
 
         /* Check if nft filter is allowed */
@@ -239,49 +243,32 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         address poolInstance = Clones.clone(poolImplementation);
 
         /* Set pool address in mapping */
-        poolByCollectionAndLtv[collection_][ltvInBPS_] = poolInstance;
+        poolByCollectionAndLtv[collection_][minimalDepositInBPS_] = poolInstance;
 
         /* Add pool to collateral wrapper*/
-        ICollateralWrapper(collectionWrapper).addPool(poolInstance);
+        INFTWrapper(collectionWrapper).addPool(poolInstance);
 
         /* Initialize pool */
         IPool(poolInstance).initialize(
             collection_,
-            assets_,
-            ltvInBPS_,
-            initialDailyInterestRateInBPS_,
-            maxPoolDailyInterestRate,
+            minimalDepositInBPS_,
+            maxPoolDailyLendingRateInBPS,
             collectionWrapper,
             liquidator_,
             nftFilter_,
             protocolFeeCollector
         );
 
-        /* should deposit in the Pool in order to avoid inflation attack  */
-
-        if (assets_ == address(0)) {
-            require(
-                msg.value >= minimalDepositAtCreation && msg.value == initialDeposit_,
-                "PoolFactory: ETH deposit required to be equal to initial deposit"
-            );
-            IPool(poolInstance).depositAndVote{value: msg.value}(
-                msg.sender,
-                initialDailyInterestRateInBPS_
-            );
-        } else {
-            require(msg.value == 0, "PoolFactory: ETH deposit not allowed");
-            IPool(poolInstance).depositERC20(
-                msg.sender,
-                initialDeposit_,
-                initialDailyInterestRateInBPS_
-            );
-        }
+        IPool(poolInstance).depositAndVote{value: msg.value}(
+            msg.sender,
+            initialDailyInterestRateInBPS_
+        );
 
         /* Add pool to registry */
         _pools.add(poolInstance);
 
         /* Emit Pool Created */
-        emit PoolCreated(collection_, ltvInBPS_, poolInstance, msg.sender);
+        emit PoolCreated(collection_, minimalDepositInBPS_, poolInstance, msg.sender);
 
         return poolInstance;
     }
@@ -366,10 +353,12 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         emit UpdateAllowedNFTFilters(allowedNFTFilters_);
     }
 
-    function updateMaxPoolDailyInterestRate(uint256 maxPoolDailyInterestRate_) external onlyOwner {
-        maxPoolDailyInterestRate = maxPoolDailyInterestRate_;
+    function updatemaxPoolDailyLendingRateInBPS(
+        uint256 maxPoolDailyLendingRateInBPS_
+    ) external onlyOwner {
+        maxPoolDailyLendingRateInBPS = maxPoolDailyLendingRateInBPS_;
 
-        emit UpdateMaxPoolDailyInterestRate(maxPoolDailyInterestRate_);
+        emit UpdatemaxPoolDailyLendingRateInBPS(maxPoolDailyLendingRateInBPS_);
     }
 
     function updateProtocolFeeCollector(address protocolFeeCollector_) external onlyOwner {

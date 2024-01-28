@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.19;
+pragma solidity 0.8.20;
 
 // interfaces
+import {IDutchAuctionLiquidator} from "./interfaces/IDutchAuctionLiquidator.sol";
 import {INFTFilter} from "./interfaces/INFTFilter.sol";
+import {INFTWrapper} from "./interfaces/INFTWrapper.sol";
+import {IPool} from "./interfaces/IPool.sol";
 import {ISettlementManager} from "./interfaces/ISettlementManager.sol";
-import {ICollateralWrapper} from "./interfaces/ICollateralWrapper.sol";
-import {ICollateralLiquidator} from "./interfaces/ICollateralLiquidator.sol";
 
 // libraries
 import {
@@ -27,7 +28,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
  * @title Pool
  * @author Nemeos
  */
-contract Pool is ERC4626Upgradeable, ReentrancyGuard {
+contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     using MathUpgradeable for uint256;
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
@@ -36,92 +37,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /**************************************************************************/
 
     /**
-     * @dev Emitted when a loan is entirely refunded.
-     * @param token The address of the NFT collection.
-     * @param tokenId The ID of the NFT.
-     * @param borrower The address of the borrower.
-     * @param amount The amount refunded.
-     */
-    event LoanEntirelyRefunded(
-        address indexed token,
-        uint256 indexed tokenId,
-        address indexed borrower,
-        uint256 amount
-    );
-
-    /**
-     * @dev Emitted when a loan is liquidated.
-     * @param token The address of the NFT collection.
-     * @param tokenId The ID of the NFT.
-     * @param borrower The address of the borrower.
-     * @param liquidator The address of the liquidator.
-     * @param amount The amount refunded.
-     */
-    event LoanLiquidated(
-        address indexed token,
-        uint256 indexed tokenId,
-        address indexed borrower,
-        address liquidator,
-        uint256 amount
-    );
-
-    /**
      * @dev Emitted when a loan is refunded from liquidation.
      * @param token The address of the NFT collection.
      * @param tokenId The ID of the NFT.
      * @param amount The amount refunded.
      */
     event LoanLiquidationRefund(address indexed token, uint256 indexed tokenId, uint256 amount);
-
-    /**
-     * @dev Emitted when a loan is partially refunded.
-     * @param token The address of the NFT collection.
-     * @param tokenId The ID of the NFT.
-     * @param borrower The address of the borrower.
-     * @param amountPaid The amount paid.
-     * @param amountRemaining The amount remaining.
-     */
-    event LoanPartiallyRefunded(
-        address indexed token,
-        uint256 indexed tokenId,
-        address indexed borrower,
-        uint256 amountPaid,
-        uint256 amountRemaining
-    );
-
-    /**
-     * @dev Emitted when a NFT is bought.
-     * @param collectionAddress The address of the NFT collection.
-     * @param tokenId The ID of the NFT.
-     * @param priceOfNFT The price of the NFT.
-     * @param borrower The address of the borrower.
-     * @param priceIncludingFees The price of the NFT including fees.
-     * @param settlementManager The address of the settlement manager.
-     * @param loanTimestamp The timestamp of the loan.
-     * @param loanDuration The duration of the loan.
-     */
-    event LoanStarted(
-        address indexed collectionAddress,
-        uint256 indexed tokenId,
-        address indexed borrower,
-        uint256 priceOfNFT,
-        uint256 priceIncludingFees,
-        address settlementManager,
-        uint256 loanTimestamp,
-        uint256 loanDuration
-    );
-
-    /**
-     * @dev Emitted when the vesting time per basis point is updated.
-     * @param newVestingTimePerBasisPoint The new vesting time per basis point.
-     */
-    event UpdateVestingTimePerBasisPoint(uint256 newVestingTimePerBasisPoint);
-
-    /**
-     * @dev Emitted when the daily interest rate is updated.
-     * @param newMaxDailyInterestRate The new daily interest rate.
-     */
-    event UpdateMaxDailyInterestRate(uint256 newMaxDailyInterestRate);
 
     /**************************************************************************/
     /* Structs */
@@ -145,23 +66,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         address borrower;
     }
 
-    struct Loan {
-        address borrower;
-        address collection; // to be removed
-        uint256 tokenID; // to be removed
-        uint256 amountAtStart;
-        uint256 amountOwedWithInterest;
-        uint256 nextPaymentAmount;
-        uint256 interestAmountPerPayment;
-        uint256 loanDuration;
-        uint256 startTime;
-        uint256 endTime;
-        uint256 nextPaymentTime;
-        uint160 remainingNumberOfInstallments;
-        bool isClosed;
-        bool isInLiquidation;
-    }
-
     /**************************************************************************/
     /* State (not updatable after initialization) */
     /**************************************************************************/
@@ -181,7 +85,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     uint256 public constant BASIS_POINTS = 10_000;
 
     /* The minimum loan to value ratio */
-    uint256 public ltvInBPS;
+    uint256 public minimalDepositInBPS;
 
     /* The NFT collection address that this pool lends for */
     address public nftCollection;
@@ -192,7 +96,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
     /** @dev The address of the contract in charge of verifying the validity of the loan request.
      */
-    address public NFTFilter;
+    address public nftFilter;
 
     /** @dev The address of the admin in charge of collecting fees.
      */
@@ -259,10 +163,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
     function initialize(
         address nftCollection_,
-        address asset_,
-        uint256 loanToValueinBPS_,
-        uint256 initialDailyInterestRateinBPS_,
-        uint256 maxDailyInterestRate_,
+        uint256 minimalDepositInBPS_,
+        uint256 maxPoolDailyLendingRateInBPS_,
         address wrappedNFT_,
         address liquidator_,
         address NFTFilter_,
@@ -272,27 +174,25 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         require(liquidator_ != address(0), "Pool: liquidator is zero address");
         require(NFTFilter_ != address(0), "Pool: NFTFilter is zero address");
         require(protocolFeeCollector_ != address(0), "Pool: protocolFeeCollector is zero address");
-        require(ltvInBPS < BASIS_POINTS, "Pool: LTV too high");
-        require(asset_ == address(0), "Pool: asset should be zero address"); // to be removed later when we support non-native tokens
+        require(minimalDepositInBPS < BASIS_POINTS, "Pool: LTV too high");
 
         nftCollection = nftCollection_;
-        ltvInBPS = loanToValueinBPS_;
-        dailyInterestRate = initialDailyInterestRateinBPS_;
-        maxDailyInterestRate = maxDailyInterestRate_;
+        minimalDepositInBPS = minimalDepositInBPS_;
+        maxDailyInterestRate = maxPoolDailyLendingRateInBPS_;
         wrappedNFT = wrappedNFT_;
         liquidator = liquidator_;
-        NFTFilter = NFTFilter_;
+        nftFilter = NFTFilter_;
         protocolFeeCollector = protocolFeeCollector_;
-        vestingTimePerBasisPoint = 12 hours; // todo: check with team
+        vestingTimePerBasisPoint = 12 hours;
 
         // todo: check the naming with team
         string memory collectionName = string.concat(
             Strings.toHexString(nftCollection),
             "-",
-            Strings.toHexString(loanToValueinBPS_)
+            Strings.toHexString(minimalDepositInBPS_)
         );
 
-        __ERC4626_init(IERC20Upgradeable(asset_));
+        __ERC4626_init(IERC20Upgradeable(address(0)));
         __ERC20_init(collectionName, "NFTL");
     }
 
@@ -322,7 +222,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         /* check if LTV is respected wit msg.value*/
         uint256 loanDepositLTV = (msg.value * BASIS_POINTS) / priceOfNFT_;
-        require(loanDepositLTV >= ltvInBPS, "Pool: LTV not respected");
+        require(loanDepositLTV >= minimalDepositInBPS, "Pool: LTV not respected");
 
         uint256 remainingLoanAmount = priceOfNFT_ - msg.value;
 
@@ -330,7 +230,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         /* check if the NFT is valid and the price is correct (NFTFilter) */
         require(
-            INFTFilter(NFTFilter).verifyLoanValidity(
+            INFTFilter(nftFilter).verifyLoanValidity(
                 collectionAddress_,
                 tokenId_,
                 priceOfNFT_,
@@ -352,7 +252,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         );
 
         /* Mint wrapped NFT */
-        ICollateralWrapper(wrappedNFT).mint(tokenId_, msg.sender);
+        INFTWrapper(wrappedNFT).mint(tokenId_, msg.sender);
 
         emit LoanStarted(
             collectionAddress_,
@@ -456,6 +356,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     function liquidateLoan(uint256 tokenId_, address borrower_) external nonReentrant {
         Loan memory loan = retrieveLoan(tokenId_, borrower_);
 
+        (tokenId_, borrower_);
+
         /* check if loan exists */
         require(loan.amountAtStart != 0, "Pool: loan does not exist");
 
@@ -480,7 +382,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
         _ongoingLiquidations.add(loanHash);
 
         /* burn wrapped NFT */
-        ICollateralWrapper(wrappedNFT).burn(tokenId_);
+        INFTWrapper(wrappedNFT).burn(tokenId_);
 
         address collectionAddress = nftCollection;
 
@@ -494,12 +396,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
             startingPrice: loan.amountAtStart,
             startingTimeStamp: block.timestamp,
             endingTimeStamp: block.timestamp +
-                ICollateralLiquidator(liquidator).liquidationDuration(),
+                IDutchAuctionLiquidator(liquidator).liquidationDuration(),
             borrower: borrower_
         });
 
         /* call liquidator  */
-        ICollateralLiquidator(liquidator).liquidate(
+        IDutchAuctionLiquidator(liquidator).liquidate(
             collectionAddress,
             tokenId_,
             loan.amountAtStart,
@@ -556,9 +458,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
     /** @dev Allows to retrieve the ongoing loans.
      *  @return onGoingLoansArray The array of ongoing loans.
      */
-    function onGoingLoans() external view returns (Loan[] memory) {
+    function onGoingLoans() external view returns (Loan[] memory onGoingLoansArray) {
         uint256 length = _ongoingLoans.length();
-        Loan[] memory onGoingLoansArray = new Loan[](length);
+        onGoingLoansArray = new Loan[](length);
         for (uint256 i = 0; i < length; i++) {
             bytes32 loanHash = _ongoingLoans.at(i);
             onGoingLoansArray[i] = loans[loanHash];
@@ -568,14 +470,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
     /** @dev Allows to retrieve a specific loan.
      * @param tokenId_ The ID of the NFT.
-     * @param borrower The address of the borrower.
-     * @return loan The loan of the borrower.
+     * @param borrower_ The address of the borrower.
+     * @return The loan of the borrower.
      */
-    function retrieveLoan(
-        uint256 tokenId_,
-        address borrower
-    ) public view returns (Loan memory loan) {
-        return loans[keccak256(abi.encodePacked(tokenId_, borrower))];
+    function retrieveLoan(uint256 tokenId_, address borrower_) public view returns (Loan memory) {
+        return loans[keccak256(abi.encodePacked(tokenId_, borrower_))];
     }
 
     /** @dev Allows to calculate the price of a loan.
@@ -664,7 +563,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
         Loan memory loan = Loan({
             borrower: msg.sender,
-            collection: nftCollection,
             tokenID: tokenId_,
             amountAtStart: amountOwedWithInterest + msg.value,
             amountOwedWithInterest: amountOwedWithInterest,
@@ -708,7 +606,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard {
 
     function _unwrapNFT(uint256 tokenId_, address borrower_) internal {
         /* burn wrapped NFT */
-        ICollateralWrapper(wrappedNFT).burn(tokenId_);
+        INFTWrapper(wrappedNFT).burn(tokenId_);
 
         /* transfer NFT to borrower */
         IERC721(nftCollection).safeTransferFrom(address(this), borrower_, tokenId_);
