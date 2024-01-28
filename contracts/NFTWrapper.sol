@@ -6,50 +6,36 @@ import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
+// interfaces
+import {INFTWrapper} from "./interfaces/INFTWrapper.sol";
+
 /**
  * @title Collateral Wrapper
  * @author Nemeos
+ * @notice ERC721 wrapper for NFTs used as collateral
  */
-contract NFTWrapper is ERC721, ReentrancyGuard, Initializable {
+contract NFTWrapper is ERC721, ReentrancyGuard, Initializable, INFTWrapper {
     /**************************************************************************/
     /* State */
     /**************************************************************************/
 
-    address public poolFactory;
-
-    address[] public pools;
-
+    /**
+     * @dev see {INFTWrapper-collection}
+     */
     address public collection;
 
-    /**************************************************************************/
-    /* Events */
-    /**************************************************************************/
-
     /**
-     * @notice Emitted when a pool is added
-     * @param pool Address of the pool
+     * @dev see {INFTWrapper-poolFactory}
      */
-    event AddPool(address pool);
+    address public poolFactory;
 
-    /**
-     * @notice Emitted when the NFT is unwrapped
-     * @param tokenId Token ID of the NFT collateral wrapper token
-     * @param account Address that unwrapped the NFT
-     */
-    event NFTBurnt(uint256 indexed tokenId, address indexed account);
-
-    /**
-     * @notice Emitted when NFT is minted
-     * @param tokenId Token ID of the new collateral wrapper token
-     * @param account Address that created the NFT
-     */
-    event NFTMinted(uint256 indexed tokenId, address indexed account);
+    address[] private _pools;
 
     /**************************************************************************/
     /* Constructor */
     /**************************************************************************/
 
-    constructor() ERC721("Nemeos Wrapper", "NMOSW") {
+    constructor() ERC721("NFT Wrapper", "NFT Wrapper") {
         _disableInitializers();
     }
 
@@ -81,55 +67,49 @@ contract NFTWrapper is ERC721, ReentrancyGuard, Initializable {
     /**************************************************************************/
 
     /**
-     * @notice Check if token ID exists
-     * @param tokenId Token ID
-     * @return True if token ID exists, otherwise false
+     * @dev see {INFTWrapper-addPool}
      */
-    function exists(uint256 tokenId) external view returns (bool) {
-        return _exists(tokenId);
+    function addPool(address pool_) external onlyPoolFactory {
+        _pools.push(pool_);
+
+        emit AddPool(pool_);
     }
 
+    /**
+     * @dev see {INFTWrapper-burn}
+     */
+    function burn(uint256 tokenId_) external nonReentrant onlyPool {
+        _burn(tokenId_);
+
+        emit NFTBurnt(tokenId_, msg.sender);
+    }
+
+    /**
+     * @dev see {INFTWrapper-exists}
+     */
+    function exists(uint256 tokenId_) external view returns (bool) {
+        return _exists(tokenId_);
+    }
+
+    /**
+     * @dev see {INFTWrapper-existsInPools}
+     */
     function existsInPools(address pool_) public view returns (bool) {
-        for (uint256 i = 0; i < pools.length; i++) {
-            if (pools[i] == pool_) {
+        for (uint256 i = 0; i < _pools.length; i++) {
+            if (_pools[i] == pool_) {
                 return true;
             }
         }
         return false;
     }
 
-    /**************************************************************************/
-    /* Pool API */
-    /**************************************************************************/
-
     /**
-     * @notice Burn NFT
-     *
-     * Emits a {NFTBurnt} event
-     *
-     * @dev Only pool can call
-     * @param tokenId NFT token ID
-     */
-    function burn(uint256 tokenId) external nonReentrant onlyPool {
-        _burn(tokenId);
-
-        emit NFTBurnt(tokenId, msg.sender);
-    }
-
-    /**
-     * @notice Deposit NFT collateral into contract and mint token
-     *
-     * Emits a {NFTMinted} event
-     *
-     * @dev Collateral token and token ids
-     * @param tokenId_ NFT token IDs
-     * @param receiver_ Address that receives the NFT
+     * @dev see {INFTWrapper-mint}
      */
     function mint(
         uint256 tokenId_,
         address receiver_
     ) external nonReentrant onlyPool returns (uint256) {
-        /* Mint token */
         _mint(receiver_, tokenId_);
 
         emit NFTMinted(tokenId_, receiver_);
@@ -137,13 +117,10 @@ contract NFTWrapper is ERC721, ReentrancyGuard, Initializable {
         return tokenId_;
     }
 
-    /**************************************************************************/
-    /* Pool Factory API */
-    /**************************************************************************/
-
-    function addPool(address pool) external onlyPoolFactory {
-        pools.push(pool);
-
-        emit AddPool(pool);
+    /**
+     * @dev see {INFTWrapper-pools}
+     */
+    function pools() external view returns (address[] memory) {
+        return _pools;
     }
 }
