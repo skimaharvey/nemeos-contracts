@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.20;
 
+// interfaces
+import {ISettlementManager} from "./interfaces/ISettlementManager.sol";
+
 // libraries
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {
@@ -8,7 +11,6 @@ import {
 } from "../lib/seaport/contracts/interfaces/ConsiderationInterface.sol";
 import {
     BasicOrderParameters,
-    BasicOrderType,
     AdditionalRecipient
 } from "../lib/seaport/contracts/lib/ConsiderationStructs.sol";
 
@@ -16,40 +18,7 @@ import {
  * @title SeaportSettlementManager
  * @author Nemeos
  */
-contract SeaportSettlementManager {
-    /**************************************************************************/
-    /* Events */
-    /**************************************************************************/
-    event BuyExecuted(
-        address indexed collectionAddress,
-        uint256 indexed tokenId,
-        address indexed pool,
-        uint256 amount
-    );
-
-    /**************************************************************************/
-    /* Structs */
-    /**************************************************************************/
-
-    struct PartialBasicOrderParameters {
-        address considerationToken;
-        uint256 considerationIdentifier;
-        uint256 considerationAmount;
-        address payable offerer;
-        address zone;
-        uint256 offerAmount;
-        BasicOrderType basicOrderType;
-        uint256 startTime;
-        uint256 endTime;
-        bytes32 zoneHash;
-        uint256 salt;
-        bytes32 offererConduitKey;
-        bytes32 fulfillerConduitKey;
-        uint256 totalOriginalAdditionalRecipients;
-        AdditionalRecipient[] additionalRecipients;
-        bytes signature;
-    }
-
+contract SeaportSettlementManager is ISettlementManager {
     /**************************************************************************/
     /* Constants */
     /**************************************************************************/
@@ -64,10 +33,7 @@ contract SeaportSettlementManager {
     /**************************************************************************/
 
     /**
-     * @notice Executes a buy order on the seaport contract
-     * @param collectionAddress_ Address of the collection
-     * @param tokenId_ ID of the token
-     * @param orderExtraData_ Extra params for the seaport contract
+     * @dev see {ISeaportSettlementManager-executeBuy}
      */
     function executeBuy(
         address collectionAddress_,
@@ -120,8 +86,7 @@ contract SeaportSettlementManager {
             signature: partialBasicOrderParameters.signature
         });
 
-        // // TODO: investigate Seaport execution as this might be wrong. params receiver should be the pool address
-        // // need to check what happens when sending too much value and possibly refund the pool
+        /* execute buy order */
         SEAPORT.fulfillBasicOrder{value: msg.value}(buyParams);
 
         /* emit BuyExecuted event */

@@ -49,14 +49,14 @@ interface ISettlementManager {
 
     /**
      * @notice Executes a buy order on the seaport contract
-     * @param collectionAddress_ Address of the collection
-     * @param tokenId_ ID of the token
-     * @param orderExtraData_ Extra params for the seaport contract
+     * @param collectionAddress Address of the collection
+     * @param tokenId ID of the token
+     * @param orderExtraData Extra params for the seaport contract
      */
     function executeBuy(
-        address collectionAddress_,
-        uint256 tokenId_,
-        bytes calldata orderExtraData_
+        address collectionAddress,
+        uint256 tokenId,
+        bytes calldata orderExtraData
     ) external payable;
 
     /**
