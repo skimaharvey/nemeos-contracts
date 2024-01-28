@@ -57,8 +57,9 @@ interface IPool {
      * @param collectionAddress The address of the NFT collection.
      * @param tokenId The ID of the NFT.
      * @param priceOfNFT The price of the NFT.
+     * @param nftFloorPrice The floor price of the NFT.
      * @param borrower The address of the borrower.
-     * @param priceIncludingFees The price of the NFT including fees.
+     * @param priceOfNFTIncludingFees The price of the NFT including fees.
      * @param settlementManager The address of the settlement manager.
      * @param loanTimestamp The timestamp of the loan.
      * @param loanDuration The duration of the loan.
@@ -68,7 +69,8 @@ interface IPool {
         uint256 indexed tokenId,
         address indexed borrower,
         uint256 priceOfNFT,
-        uint256 priceIncludingFees,
+        uint256 nftFloorPrice,
+        uint256 priceOfNFTIncludingFees,
         address settlementManager,
         uint256 loanTimestamp,
         uint256 loanDuration
@@ -153,26 +155,28 @@ interface IPool {
 
     /**
      * @notice Initiate the loan of an NFT
-     * @param collectionAddress_ Address of the NFT collection
-     * @param tokenId_ ID of the NFT
-     * @param priceOfNFT_ Price of the NFT
-     * @param priceIncludingFees_ Price of the NFT including the interest rate and protocol fees
-     * @param settlementManager_ Address of the settlement manager that will process the NFT payment
-     * @param loanTimestamp_ Timestamp of the loan
-     * @param loanDuration_ Duration of the loan
-     * @param orderExtraData_ Extra data of the order
-     * @param oracleSignature_ Signature of the oracle
+     * @param collectionAddress Address of the NFT collection
+     * @param tokenId ID of the NFT
+     * @param priceOfNFT Price of the NFT
+     * @param nftFloorPrice Floor price of the NFT
+     * @param priceOfNFTIncludingFees Price of the NFT including the interest rate and protocol fees
+     * @param settlementManager Address of the settlement manager that will process the NFT payment
+     * @param loanTimestamp Timestamp of the loan
+     * @param loanDuration Duration of the loan
+     * @param orderExtraData Extra data of the order
+     * @param oracleSignature Signature of the oracle
      */
     function buyNFT(
-        address collectionAddress_,
-        uint256 tokenId_,
-        uint256 priceOfNFT_,
-        uint256 priceIncludingFees_,
-        address settlementManager_,
-        uint256 loanTimestamp_,
-        uint256 loanDuration_,
-        bytes calldata orderExtraData_,
-        bytes calldata oracleSignature_
+        address collectionAddress,
+        uint256 tokenId,
+        uint256 priceOfNFT,
+        uint256 nftFloorPrice,
+        uint256 priceOfNFTIncludingFees,
+        address settlementManager,
+        uint256 loanTimestamp,
+        uint256 loanDuration,
+        bytes calldata orderExtraData,
+        bytes calldata oracleSignature
     ) external payable;
 
     /**

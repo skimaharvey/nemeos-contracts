@@ -223,7 +223,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         address collectionAddress_,
         uint256 tokenId_,
         uint256 priceOfNFT_,
-        uint256 priceIncludingFees_,
+        uint256 nftFloorPrice_,
+        uint256 priceOfNFTIncludingFees_,
         address settlementManager_,
         uint256 loanTimestamp_,
         uint256 loanDuration_,
@@ -239,16 +240,25 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         /* check if loan duration is not below 1 day */
         require(loanDuration_ >= MIN_LOAN_DURATION, "Pool: loan duration too short");
 
-        /* check if MinimalDeposit is respected wit msg.value*/
-        uint256 loanDepositMinimalDeposit = (msg.value * BASIS_POINTS) / priceOfNFT_;
+        /* price to use to calculate loan */
+        uint256 priceToUse = nftFloorPrice_ < priceOfNFT_ ? nftFloorPrice_ : priceOfNFT_;
+
+        /* calculate the rarity premium */
+        uint256 rarityPremium = priceToUse != nftFloorPrice_ ? (priceOfNFT_ - priceToUse) : 0;
+
+        /* check if mininalDeposit is respected wit msg.value
+          the rule here is we take the minimum price between the floor price and the price of the NFT
+          and then require at deposit that the minimal deposit ratio is respected and if the price of the NFT is
+          higher than the floor price we add the difference to the minimal deposit
+        */
         require(
-            loanDepositMinimalDeposit >= minimalDepositInBPS,
+            msg.value >= (priceToUse * minimalDepositInBPS) / BASIS_POINTS + (rarityPremium),
             "Pool: MinimalDeposit not respected"
         );
 
         uint256 remainingLoanAmount = priceOfNFT_ - msg.value;
 
-        _createLoan(remainingLoanAmount, loanDuration_, priceIncludingFees_, tokenId_);
+        _createLoan(remainingLoanAmount, loanDuration_, priceOfNFTIncludingFees_, tokenId_);
 
         /* check if the NFT is valid and the price is correct (NFTFilter) */
         require(
@@ -256,7 +266,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
                 collectionAddress_,
                 tokenId_,
                 priceOfNFT_,
-                priceIncludingFees_,
+                nftFloorPrice_,
+                priceOfNFTIncludingFees_,
                 msg.sender,
                 settlementManager_,
                 loanTimestamp_,
@@ -281,7 +292,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             tokenId_,
             msg.sender,
             priceOfNFT_,
-            priceIncludingFees_,
+            nftFloorPrice_,
+            priceOfNFTIncludingFees_,
             settlementManager_,
             loanTimestamp_,
             loanDuration_
@@ -560,7 +572,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     function _createLoan(
         uint256 remainingLoanAmount_,
         uint256 loanDuration_,
-        uint256 priceIncludingFees_,
+        uint256 priceOfNFTIncludingFees_,
         uint256 tokenId_
     ) internal returns (uint256) {
         /* calculate the number of days of the loan */
@@ -575,7 +587,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
 
         /* check if the amount to be paid back is not too high */
         require(
-            amountOwedWithInterest + msg.value <= priceIncludingFees_,
+            amountOwedWithInterest + msg.value <= priceOfNFTIncludingFees_,
             "Pool: amount to be paid back too high"
         );
 
