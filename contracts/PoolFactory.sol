@@ -2,7 +2,7 @@
 pragma solidity 0.8.20;
 
 // Contracts
-import {CollateralFactory} from "./CollateralFactory.sol";
+import {NFTWrapperFactory} from "./NFTWrapperFactory.sol";
 
 // interfaces
 import {IPool} from "./interfaces/IPool.sol";
@@ -230,11 +230,11 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         require(_verifyNFTFilter(nftFilter_), "PoolFactory: NFT filter not allowed");
 
         /* Check if collection already registered in collateral factory, if not create it */
-        address collectionWrapper = CollateralFactory(collateralFactoryAddress).collateralWrapper(
+        address collectionWrapper = NFTWrapperFactory(collateralFactoryAddress).nftWrappers(
             collection_
         );
         if (collectionWrapper == address(0)) {
-            collectionWrapper = CollateralFactory(collateralFactoryAddress).deployCollateralWrapper(
+            collectionWrapper = NFTWrapperFactory(collateralFactoryAddress).deployNFTWrapper(
                 collection_
             );
         }

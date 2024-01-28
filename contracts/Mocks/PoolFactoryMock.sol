@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import {CollateralFactory} from "../CollateralFactory.sol";
-import {CollateralWrapper} from "../CollateralWrapper.sol";
+import {NFTWrapper} from "../NFTWrapper.sol";
+import {NFTWrapperFactory} from "../NFTWrapperFactory.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 contract PoolFactoryMock {
@@ -34,7 +34,7 @@ contract PoolFactoryMock {
     }
 
     function addPoolToCollateralWrapper(address collateralWrapper, address pool) external {
-        CollateralWrapper(collateralWrapper).addPool(pool);
+        NFTWrapper(collateralWrapper).addPool(pool);
     }
 
     function createPool(
@@ -46,7 +46,7 @@ contract PoolFactoryMock {
         address /* nftFilter_ */,
         address /* liquidator_ */
     ) external payable returns (address, address) {
-        address collateralWrapper = CollateralFactory(collateralFactory).deployCollateralWrapper(
+        address collateralWrapper = NFTWrapperFactory(collateralFactory).deployNFTWrapper(
             collection_
         );
         address poolInstance = Clones.clone(poolImplementation);

@@ -390,7 +390,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             startingPrice: loan.amountAtStart,
             startingTimeStamp: block.timestamp,
             endingTimeStamp: block.timestamp +
-                IDutchAuctionLiquidator(liquidator).liquidationDuration(),
+                IDutchAuctionLiquidator(liquidator).LIQUIDATION_DURATION(),
             borrower: borrower_
         });
 

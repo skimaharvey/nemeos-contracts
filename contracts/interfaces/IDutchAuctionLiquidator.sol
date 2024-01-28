@@ -112,17 +112,6 @@ interface IDutchAuctionLiquidator {
     ) external;
 
     /**
-     * @notice Fetch liquidation
-     * @param liquidatedCollection Liquidated collection
-     * @param liquidatedTokenId Liquidated token ID
-     * @return Liquidation
-     */
-    function liquidation(
-        address liquidatedCollection,
-        uint256 liquidatedTokenId
-    ) external view returns (Liquidation memory);
-
-    /**
      * @return Duration of a liquidation
      */
     function LIQUIDATION_DURATION() external view returns (uint64);
