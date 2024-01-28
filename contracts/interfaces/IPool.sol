@@ -133,6 +133,7 @@ interface IPool {
      * @param startingTimeStamp Starting timestamp
      * @param endingTimeStamp Ending timestamp
      * @param borrower Borrower
+     * @param remainingAmountOwed Remaining amount owed
      */
     struct Liquidation {
         bool liquidationStatus;
@@ -141,6 +142,7 @@ interface IPool {
         uint256 startingTimeStamp;
         uint256 endingTimeStamp;
         address borrower;
+        uint256 remainingAmountOwed;
     }
 
     /**************************************************************************/
@@ -221,6 +223,12 @@ interface IPool {
         address receiver,
         uint256 dailyInterestRate
     ) external payable returns (uint256);
+
+    /**
+     * @notice Allows to liquidate a loan when paiement is late.
+     * @param tokenId The ID of the NFT.
+     */
+    function forceLiquidateLoan(uint256 tokenId) external;
 
     /**
      * @notice Initialize pool

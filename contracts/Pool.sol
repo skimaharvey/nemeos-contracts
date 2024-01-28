@@ -252,7 +252,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
           higher than the floor price we add the difference to the minimal deposit
         */
         require(
-            msg.value >= (priceToUse * minimalDepositInBPS) / BASIS_POINTS + (rarityPremium),
+            msg.value >= (priceToUse * minimalDepositInBPS) / BASIS_POINTS + rarityPremium,
             "Pool: MinimalDeposit not respected"
         );
 
@@ -360,12 +360,74 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     }
 
     /**
+     * @dev see {IPool-forceLiquidateLoan}
+     */
+    function forceLiquidateLoan(uint256 tokenId_) external nonReentrant {
+        Loan memory loan = retrieveLoan(tokenId_, msg.sender);
+
+        /* check if loan exists */
+        require(loan.amountAtStart != 0, "Pool: loan does not exist");
+
+        /* check if loan is not closed */
+        require(!loan.isClosed && !loan.isInLiquidation, "Pool: loan is closed");
+
+        /* check if loan is not paid back */
+        require(loan.amountOwedWithInterest > 0, "Pool: loan already paid back");
+
+        bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, msg.sender));
+
+        /* update the loan to 'in liquidation' */
+        _loans[loanHash].isInLiquidation = true;
+
+        /* remove the loan from the ongoing loans */
+        _ongoingLoans.remove(loanHash);
+
+        /* add the loan to the ongoing liquidations */
+        _ongoingLiquidations.add(loanHash);
+
+        /* burn wrapped NFT */
+        INFTWrapper(wrappedNFT).burn(tokenId_);
+
+        address collectionAddress = nftCollection;
+
+        /* transfer NFT to liquidator */
+        IERC721(collectionAddress).transferFrom(address(this), liquidator, tokenId_);
+
+        /* Create liquidation */
+        _liquidations[loanHash] = Liquidation({
+            liquidationStatus: true,
+            tokenId: tokenId_,
+            startingPrice: loan.amountAtStart,
+            startingTimeStamp: block.timestamp,
+            endingTimeStamp: block.timestamp +
+                IDutchAuctionLiquidator(liquidator).LIQUIDATION_DURATION(),
+            borrower: msg.sender,
+            remainingAmountOwed: loan.amountOwedWithInterest
+        });
+
+        /* call liquidator  */
+        IDutchAuctionLiquidator(liquidator).liquidate(
+            collectionAddress,
+            tokenId_,
+            loan.amountAtStart,
+            msg.sender
+        );
+
+        /* emit LoanLiquidated event */
+        emit LoanLiquidated(
+            collectionAddress,
+            tokenId_,
+            msg.sender,
+            liquidator,
+            loan.amountAtStart
+        );
+    }
+
+    /**
      * @dev see {IPool-liquidateLoan}
      */
     function liquidateLoan(uint256 tokenId_, address borrower_) external nonReentrant {
         Loan memory loan = retrieveLoan(tokenId_, borrower_);
-
-        (tokenId_, borrower_);
 
         /* check if loan exists */
         require(loan.amountAtStart != 0, "Pool: loan does not exist");
@@ -406,7 +468,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             startingTimeStamp: block.timestamp,
             endingTimeStamp: block.timestamp +
                 IDutchAuctionLiquidator(liquidator).LIQUIDATION_DURATION(),
-            borrower: borrower_
+            borrower: borrower_,
+            remainingAmountOwed: loan.amountOwedWithInterest
         });
 
         /* call liquidator  */
@@ -528,6 +591,20 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         Loan memory loan = retrieveLoan(tokenId_, borrower_);
 
         bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
+
+        /* find the liquidation */
+        Liquidation memory liquidation = _liquidations[loanHash];
+
+        /* check if the refund is higher than the remaining amount owed */
+        uint256 refundSurplus = msg.value > liquidation.remainingAmountOwed
+            ? msg.value - liquidation.remainingAmountOwed
+            : 0;
+
+        /* refund the surplus to the borrower */
+        if (refundSurplus != 0) {
+            /* we do not check for success here because we do not want to revert if the transfer fails */
+            borrower_.call{value: refundSurplus}("");
+        }
 
         /* delete liquidation */
         delete _liquidations[loanHash];
