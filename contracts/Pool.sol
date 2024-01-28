@@ -307,8 +307,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         uint256 remainingLoanAmount_,
         uint256 loanDurationInDays_
     ) public view returns (uint256, uint256, uint256, uint160) {
-        require(remainingLoanAmount_ <= address(this).balance, "Pool: not enough assets");
-
         /* number of payments installments */
         uint256 numberOfInstallments = loanDurationInDays_ % (MAX_LOAN_REFUND_INTERVAL / 1 days) ==
             0
@@ -323,7 +321,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         /* calculate the interest amount per payment */
         uint256 interestAmountPerPayment = totalInterestAmount % numberOfInstallments == 0
             ? totalInterestAmount / numberOfInstallments
-            : (totalInterestAmount / numberOfInstallments) + 1;
+            : (totalInterestAmount / numberOfInstallments) + 1; // +1 wei for liquidity providers
 
         /* calculate the total amount to be paid back with interest */
         uint256 adjustedRemainingLoanAmountWithInterest = remainingLoanAmount_ +
@@ -390,9 +388,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
 
         address collectionAddress = nftCollection;
 
-        /* transfer NFT to liquidator */
-        IERC721(collectionAddress).transferFrom(address(this), liquidator, tokenId_);
-
         /* Create liquidation */
         _liquidations[loanHash] = Liquidation({
             liquidationStatus: true,
@@ -404,6 +399,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             borrower: msg.sender,
             remainingAmountOwed: loan.amountOwedWithInterest
         });
+
+        /* transfer NFT to liquidator */
+        IERC721(collectionAddress).transferFrom(address(this), liquidator, tokenId_);
 
         /* call liquidator  */
         IDutchAuctionLiquidator(liquidator).liquidate(
@@ -457,9 +455,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
 
         address collectionAddress = nftCollection;
 
-        /* transfer NFT to liquidator */
-        IERC721(collectionAddress).transferFrom(address(this), liquidator, tokenId_);
-
         /* Create liquidation */
         _liquidations[loanHash] = Liquidation({
             liquidationStatus: true,
@@ -471,6 +466,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             borrower: borrower_,
             remainingAmountOwed: loan.amountOwedWithInterest
         });
+
+        /* transfer NFT to liquidator */
+        IERC721(collectionAddress).transferFrom(address(this), liquidator, tokenId_);
 
         /* call liquidator  */
         IDutchAuctionLiquidator(liquidator).liquidate(
@@ -654,6 +652,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     ) internal returns (uint256) {
         /* calculate the number of days of the loan */
         uint256 loanDurationInDays = loanDuration_ / 1 days;
+
+        require(remainingLoanAmount_ <= address(this).balance, "Pool: not enough assets");
 
         (
             uint256 amountOwedWithInterest,

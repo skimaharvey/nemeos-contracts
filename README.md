@@ -20,4 +20,4 @@ If borrower fails to repay, the Wrapper will be burnt and the NFT will be send t
 ## Design Decisions
 
 - We are aware that the protocol is not fully compliant with the ERC-4626 standard as we wanted to use native tokens but still found it useful to implement the standard as we might in the future accept other tokens and could as well still use the logic of shares that comes with vaults.
-- Each NFT
+- The NFT collection we will support will be added to the PoolFactory contract by the team. We will make sure they are compliant with the ERC-721 standard and our protocol. We will not allow NFT that have 'weird' properties that could make it dangerous to lend against them.
