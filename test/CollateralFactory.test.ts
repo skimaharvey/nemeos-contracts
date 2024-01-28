@@ -1,7 +1,7 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 
-describe('CollateralFactory', async () => {
+describe('NFTWrapperFactory', async () => {
   const buildTestContext = async () => {
     const [poolFactoryOwner, randomCollectionOwner, pool] = await ethers.getSigners();
 
@@ -10,27 +10,27 @@ describe('CollateralFactory', async () => {
     const poolFactoryMock = await PoolFactoryMock.deploy(pool.address);
     await poolFactoryMock.deployed();
 
-    // Deploy the CollateralFactory contract
-    const CollateralFactory = await ethers.getContractFactory('CollateralFactory');
-    const collateralFactory = await CollateralFactory.deploy(poolFactoryMock.address);
-    await collateralFactory.deployed();
+    // Deploy the NFTWrapperFactory contract
+    const NFTWrapperFactoryFactory = await ethers.getContractFactory('NFTWrapperFactory');
+    const NFTWrapperFactory = await NFTWrapperFactoryFactory.deploy(poolFactoryMock.address);
+    await NFTWrapperFactory.deployed();
 
-    // Add the collateral factory to the pool factory
-    await poolFactoryMock.updateCollateralFactory(collateralFactory.address);
-    expect(await poolFactoryMock.collateralFactory()).to.equal(collateralFactory.address);
+    // Add the nft factory to the pool factory
+    await poolFactoryMock.updateNFTWrapperFactory(NFTWrapperFactory.address);
+    expect(await poolFactoryMock.NFTWrapperFactory()).to.equal(NFTWrapperFactory.address);
 
     return {
       poolFactoryMock,
       poolFactoryOwner,
       randomCollectionOwner,
-      collateralFactory,
+      NFTWrapperFactory,
     };
   };
 
-  it('should create a collateral wrapper', async () => {
-    const { collateralFactory, poolFactoryMock, randomCollectionOwner } = await buildTestContext();
+  it('should create a nft wrapper', async () => {
+    const { NFTWrapperFactory, poolFactoryMock, randomCollectionOwner } = await buildTestContext();
 
-    const collateralWrapper = await poolFactoryMock.callStatic.createPool(
+    const NFTWrapper = await poolFactoryMock.callStatic.createPool(
       randomCollectionOwner.address,
       ethers.constants.AddressZero,
       1,
@@ -51,18 +51,18 @@ describe('CollateralFactory', async () => {
     );
 
     expect(createTx)
-      .to.emit(collateralFactory, 'CollateralWrapperCreated')
-      .withArgs(randomCollectionOwner.address, collateralWrapper);
+      .to.emit(NFTWrapperFactory, 'NFTWrapperCreated')
+      .withArgs(randomCollectionOwner.address, NFTWrapper);
 
-    const createdWrapper = await collateralFactory.collateralWrapper(randomCollectionOwner.address);
+    const createdWrapper = await NFTWrapperFactory.nftWrappers(randomCollectionOwner.address);
 
     expect(createdWrapper).to.not.equal(ethers.constants.AddressZero);
   });
 
-  it('should revert if a collateral wrapper already exists for a collection', async () => {
+  it('should revert if a NFT wrapper already exists for a collection', async () => {
     const { poolFactoryMock, randomCollectionOwner } = await buildTestContext();
 
-    // Create a collateral wrapper for a random collection
+    // Create a NFT wrapper for a random collection
     await poolFactoryMock.createPool(
       randomCollectionOwner.address,
       ethers.constants.AddressZero,
@@ -73,7 +73,7 @@ describe('CollateralFactory', async () => {
       ethers.utils.hexlify(ethers.utils.randomBytes(20)),
     );
 
-    // Try to create another collateral wrapper for the same collection, should revert
+    // Try to create another NFT wrapper for the same collection, should revert
     await expect(
       poolFactoryMock.createPool(
         randomCollectionOwner.address,
@@ -84,15 +84,15 @@ describe('CollateralFactory', async () => {
         ethers.utils.hexlify(ethers.utils.randomBytes(20)),
         ethers.utils.hexlify(ethers.utils.randomBytes(20)),
       ),
-    ).to.be.revertedWith('CollateralWrapper: Collateral wrapper already exists');
+    ).to.be.revertedWith('NFTWrapper: NFT wrapper already exists');
   });
 
-  it('should only allow the pool factory to deploy a collateral wrapper', async () => {
-    const { collateralFactory, randomCollectionOwner } = await buildTestContext();
+  it('should only allow the pool factory to deploy a NFT wrapper', async () => {
+    const { NFTWrapperFactory, randomCollectionOwner } = await buildTestContext();
 
-    // Try to create a collateral wrapper without the pool factory, should revert
+    // Try to create a NFT wrapper without the pool factory, should revert
     await expect(
-      collateralFactory.deployCollateralWrapper(randomCollectionOwner.address),
-    ).to.be.revertedWith('CollateralWrapper: Only pool factory can call');
+      NFTWrapperFactory.deployNFTWrapper(randomCollectionOwner.address),
+    ).to.be.revertedWith('NFTWrapper: Only pool factory can call');
   });
 });

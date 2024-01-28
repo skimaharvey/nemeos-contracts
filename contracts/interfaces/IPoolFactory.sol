@@ -49,12 +49,6 @@ interface IPoolFactory {
     event UpdateAllowedNFTFilters(address[] allowedNFTFilters);
 
     /**
-     * @notice Emitted when the collateral factory is updated
-     * @param collateralFactory New collateral factory address
-     */
-    event UpdateCollateralFactory(address indexed collateralFactory);
-
-    /**
      * @notice Emitted when the minimal deposit at creation is updated
      * @param minimalDepositAtCreation New minimal deposit at creation
      */
@@ -213,10 +207,10 @@ interface IPoolFactory {
     function updateAllowedNFTFilters(address[] memory allowedNFTFilters) external;
 
     /**
-     * @notice Update the collateral factory address
-     * @param collateralFactory Collateral factory address
+     * @notice Update the NFTWrapper factory address
+     * @param NFTWrapperFactory NFTWrapper factory address
      */
-    function updateNFTWrapperFactory(address collateralFactory) external;
+    function updateNFTWrapperFactory(address NFTWrapperFactory) external;
 
     /**
      * @notice Update the Max Pool Daily Lending Rate In BPS

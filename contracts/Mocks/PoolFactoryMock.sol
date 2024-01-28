@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import {NFTWrapper} from "../NFTWrapper.sol";
-import {NFTWrapperFactory} from "../NFTWrapperFactory.sol";
+import {INFTWrapper} from "../interfaces/INFTWrapper.sol";
+import {INFTWrapperFactory} from "..//interfaces/INFTWrapperFactory.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 contract PoolFactoryMock {
     address[] public pools;
-    address public collateralFactory;
+    address public NFTWrapperFactory;
     address poolImplementation;
 
     constructor(address poolImplementation_) {
@@ -33,8 +33,8 @@ contract PoolFactoryMock {
         pools.push(newPool);
     }
 
-    function addPoolToCollateralWrapper(address collateralWrapper, address pool) external {
-        NFTWrapper(collateralWrapper).addPool(pool);
+    function addPoolToNFTWrapperFactory(address NFTWrapper_, address pool_) external {
+        INFTWrapper(NFTWrapper_).addPool(pool_);
     }
 
     function createPool(
@@ -46,15 +46,13 @@ contract PoolFactoryMock {
         address /* nftFilter_ */,
         address /* liquidator_ */
     ) external payable returns (address, address) {
-        address collateralWrapper = NFTWrapperFactory(collateralFactory).deployNFTWrapper(
-            collection_
-        );
+        address NFTWrapper = INFTWrapperFactory(NFTWrapperFactory).deployNFTWrapper(collection_);
         address poolInstance = Clones.clone(poolImplementation);
 
-        return (poolInstance, collateralWrapper);
+        return (poolInstance, NFTWrapper);
     }
 
-    function updateCollateralFactory(address newCollateralFactory) external {
-        collateralFactory = newCollateralFactory;
+    function updateNFTWrapperFactory(address newNFTFactory) external {
+        NFTWrapperFactory = newNFTFactory;
     }
 }

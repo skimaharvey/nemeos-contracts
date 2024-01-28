@@ -136,8 +136,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable, IPoolFactory {
     ) external payable onlyOwner returns (address) {
         address nftWrapperFactoryAddress = nftWrapperFactory;
 
-        /* Check that collateral factory is set */
-        require(nftWrapperFactoryAddress != address(0), "PoolFactory: Collateral factory not set");
+        /* Check that NFTWrapper factory is set */
+        require(nftWrapperFactoryAddress != address(0), "PoolFactory: NFTWrapper factory not set");
 
         /* Check that pool implementation is set */
         require(poolImplementation != address(0), "PoolFactory: Pool implementation not set");
@@ -163,7 +163,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable, IPoolFactory {
         /* Check if nft filter is allowed */
         require(_verifyNFTFilter(nftFilter_), "PoolFactory: NFT filter not allowed");
 
-        /* Check if collection already registered in collateral factory, if not create it */
+        /* Check if collection already registered in NFTWrapper factory, if not create it */
         address collectionWrapper = NFTWrapperFactory(nftWrapperFactoryAddress).nftWrappers(
             collection_
         );
@@ -179,7 +179,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable, IPoolFactory {
         /* Set pool address in mapping */
         _poolByCollectionAndMinimalDeposits[collection_][minimalDepositInBPS_] = poolInstance;
 
-        /* Add pool to collateral wrapper*/
+        /* Add pool to NFTWrapper */
         INFTWrapper(collectionWrapper).addPool(poolInstance);
 
         /* Initialize pool */

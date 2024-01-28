@@ -10,9 +10,9 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {INFTWrapper} from "./interfaces/INFTWrapper.sol";
 
 /**
- * @title Collateral Wrapper
+ * @title NFT Wrapper
  * @author Nemeos
- * @notice ERC721 wrapper for NFTs used as collateral
+ * @notice ERC721 wrapper for NFTs used as wrapped in the Nemeos protocol
  */
 contract NFTWrapper is ERC721, ReentrancyGuard, Initializable, INFTWrapper {
     /**************************************************************************/
@@ -53,12 +53,12 @@ contract NFTWrapper is ERC721, ReentrancyGuard, Initializable, INFTWrapper {
     /**************************************************************************/
 
     modifier onlyPool() {
-        require(existsInPools(msg.sender), "CollateralWrapper: Only pool can call");
+        require(existsInPools(msg.sender), "NFTWrapper: Only pool can call");
         _;
     }
 
     modifier onlyPoolFactory() {
-        require(msg.sender == poolFactory, "CollateralWrapper: Only pool factory can call");
+        require(msg.sender == poolFactory, "NFTWrapper: Only pool factory can call");
         _;
     }
 

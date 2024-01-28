@@ -74,10 +74,10 @@ describe('Pool', async () => {
     );
     await dutchAuctionLiquidator.deployed();
 
-    // deploy Collateral Factory
-    const CollateralFactory = await ethers.getContractFactory('CollateralFactory');
-    const collateralFactory = await CollateralFactory.deploy(poolFactoryProxy.address);
-    await collateralFactory.deployed();
+    // deploy NFT Factory
+    const NFTWrapperFactoryFactory = await ethers.getContractFactory('NFTWrapperFactory');
+    const NFTWrapperFactory = await NFTWrapperFactoryFactory.deploy(poolFactoryProxy.address);
+    await NFTWrapperFactory.deployed();
 
     // deploy Pool implementation
     const Pool = await ethers.getContractFactory('Pool');
@@ -100,10 +100,10 @@ describe('Pool', async () => {
     // create token contract with collectionAddress
     const tokenContract = await ethers.getContractAt('ERC721', collectionAddress);
 
-    // todo: add pool to Collateral wrapper
+    // todo: add pool to NFT wrapper
 
-    // update collateral factory to poolFactory
-    await poolFactoryProxy.updateCollateralFactory(collateralFactory.address);
+    // update NFT factory to poolFactory
+    await poolFactoryProxy.updateNFTWrapperFactory(NFTWrapperFactory.address);
 
     // update pool implementation to poolFactory
     await poolFactoryProxy.updatePoolImplementation(poolImpl.address);
@@ -112,7 +112,7 @@ describe('Pool', async () => {
     await poolFactoryProxy.updateAllowedLiquidators([dutchAuctionLiquidator.address]);
 
     // update allowed ltv to poolFactory
-    await poolFactoryProxy.updateAllowedLTVs([loanToValueInBps]);
+    await poolFactoryProxy.updateAllowedMinimalDepositsInBPS([loanToValueInBps]);
 
     // update allowed NFT filters to poolFactory
     await poolFactoryProxy.updateAllowedNFTFilters([nftFilterAddress]);
@@ -120,10 +120,8 @@ describe('Pool', async () => {
     // deploy Pool proxy through poolFactory
     const poolProxyAddress = await poolFactoryProxy.callStatic.createPool(
       collectionAddress,
-      ethers.constants.AddressZero,
       loanToValueInBps,
       initialDailyInterestRateInBps,
-      initialDeposit,
       nftFilterAddress,
       dutchAuctionLiquidator.address,
       { value: minimalDepositAtCreation },
@@ -131,10 +129,8 @@ describe('Pool', async () => {
 
     await poolFactoryProxy.createPool(
       collectionAddress,
-      ethers.constants.AddressZero,
       loanToValueInBps,
       initialDailyInterestRateInBps,
-      initialDeposit,
       nftFilterAddress,
       dutchAuctionLiquidator.address,
       { value: minimalDepositAtCreation },
@@ -151,7 +147,7 @@ describe('Pool', async () => {
       initialDailyInterestRateInBps,
       randomLiquidatorAddress,
       nftFilterAddress,
-      collateralFactory,
+      NFTWrapperFactory,
       poolProxy,
       impersonatedWhaleSigner,
       randomUser,
@@ -1617,7 +1613,7 @@ describe('Pool', async () => {
             value: depositAmount,
           });
 
-        const vestingTimeBefore = await poolProxy.vestingTimePerLender(lender1.address);
+        const vestingTimeBefore = await poolProxy.vestingTimeOfLender(lender1.address);
 
         await poolProxy
           .connect(lender1)
@@ -1625,7 +1621,7 @@ describe('Pool', async () => {
             value: depositAmount,
           });
 
-        const vestingTimeAfter = await poolProxy.vestingTimePerLender(lender1.address);
+        const vestingTimeAfter = await poolProxy.vestingTimeOfLender(lender1.address);
 
         expect(vestingTimeAfter).to.be.greaterThan(vestingTimeBefore);
       });
@@ -1640,7 +1636,7 @@ describe('Pool', async () => {
             value: depositAmount,
           });
 
-        const vestingTimeBefore = await poolProxy.vestingTimePerLender(lender1.address);
+        const vestingTimeBefore = await poolProxy.vestingTimeOfLender(lender1.address);
 
         await poolProxy
           .connect(lender1)
@@ -1648,7 +1644,7 @@ describe('Pool', async () => {
             value: depositAmount,
           });
 
-        const vestingTimeAfter = await poolProxy.vestingTimePerLender(lender1.address);
+        const vestingTimeAfter = await poolProxy.vestingTimeOfLender(lender1.address);
 
         expect(vestingTimeAfter).to.be.equal(vestingTimeBefore);
       });
@@ -1728,7 +1724,7 @@ describe('Pool', async () => {
               value: depositAmount,
             });
 
-          const vestingTimeLender1Before = await poolProxy.vestingTimePerLender(lender1.address);
+          const vestingTimeLender1Before = await poolProxy.vestingTimeOfLender(lender1.address);
 
           await poolProxy
             .connect(lender2)
@@ -1736,7 +1732,7 @@ describe('Pool', async () => {
               value: depositAmount,
             });
 
-          const vestingTimeLender1After = await poolProxy.vestingTimePerLender(lender1.address);
+          const vestingTimeLender1After = await poolProxy.vestingTimeOfLender(lender1.address);
 
           expect(vestingTimeLender1After).to.be.equal(vestingTimeLender1Before);
         });
