@@ -40,7 +40,7 @@ contract PoolFactoryMock {
     function createPool(
         address collection_,
         address /* assets_ */,
-        uint256 /* ltvInBPS_ */,
+        uint256 /* minimalDepositInBPS_ */,
         uint256 /* initialDailyInterestRateInBPS_ */,
         uint256 /* initialDeposit_ */,
         address /* nftFilter_ */,

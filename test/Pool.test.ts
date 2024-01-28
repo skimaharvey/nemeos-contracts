@@ -38,7 +38,7 @@ describe('Pool', async () => {
     const collectionAddress =
       OfferData.fulfillment_data.transaction.input_data.parameters.offerToken;
 
-    const loanToValueInBps = 3_000; // 30%
+    const minimalDepositInBps = 3_000; // 30%
     const initialDailyInterestRateInBps = 50;
     const initialDeposit = ethers.utils.parseEther('1');
 
@@ -111,8 +111,8 @@ describe('Pool', async () => {
     // update allowed liquidators to poolFactory
     await poolFactoryProxy.updateAllowedLiquidators([dutchAuctionLiquidator.address]);
 
-    // update allowed ltv to poolFactory
-    await poolFactoryProxy.updateAllowedMinimalDepositsInBPS([loanToValueInBps]);
+    // update allowed minimal deposit to poolFactory
+    await poolFactoryProxy.updateAllowedMinimalDepositsInBPS([minimalDepositInBps]);
 
     // update allowed NFT filters to poolFactory
     await poolFactoryProxy.updateAllowedNFTFilters([nftFilterAddress]);
@@ -120,7 +120,7 @@ describe('Pool', async () => {
     // deploy Pool proxy through poolFactory
     const poolProxyAddress = await poolFactoryProxy.callStatic.createPool(
       collectionAddress,
-      loanToValueInBps,
+      minimalDepositInBps,
       initialDailyInterestRateInBps,
       nftFilterAddress,
       dutchAuctionLiquidator.address,
@@ -129,7 +129,7 @@ describe('Pool', async () => {
 
     await poolFactoryProxy.createPool(
       collectionAddress,
-      loanToValueInBps,
+      minimalDepositInBps,
       initialDailyInterestRateInBps,
       nftFilterAddress,
       dutchAuctionLiquidator.address,
@@ -142,7 +142,7 @@ describe('Pool', async () => {
       poolFactoryImpl,
       poolFactoryProxy,
       poolFactoryOwner,
-      loanToValueInBps,
+      minimalDepositInBps,
       collectionAddress,
       initialDailyInterestRateInBps,
       randomLiquidatorAddress,
@@ -176,7 +176,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -185,7 +185,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -199,7 +199,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -209,7 +209,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -236,7 +236,7 @@ describe('Pool', async () => {
           loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
-          BigNumber.from(ltvValue.toString()),
+          BigNumber.from(minimalDepositValue.toString()),
         );
       });
 
@@ -246,7 +246,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -255,7 +255,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -291,7 +291,7 @@ describe('Pool', async () => {
             0,
             orderExtraData,
             oracleSignature,
-            BigNumber.from(ltvValue.toString()),
+            BigNumber.from(minimalDepositValue.toString()),
           ),
         ).to.be.revertedWith('Pool: loan duration too short');
       });
@@ -302,7 +302,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -311,7 +311,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -349,18 +349,18 @@ describe('Pool', async () => {
             ninetyOneDaysInSeconds,
             orderExtraData,
             oracleSignature,
-            BigNumber.from(ltvValue.toString()),
+            BigNumber.from(minimalDepositValue.toString()),
           ),
         ).to.be.revertedWith('Pool: loan duration too long');
       });
 
-      it('should revert when trying to buy NFT with too low LTV', async () => {
+      it('should revert when trying to buy NFT with too low MininalDeposit', async () => {
         const {
           poolProxy,
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -369,7 +369,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -383,7 +383,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -393,7 +393,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -420,9 +420,9 @@ describe('Pool', async () => {
               loanDurationInSeconds,
               orderExtraData,
               oracleSignature,
-              { value: BigNumber.from(ltvValue.toString()).sub(1) },
+              { value: BigNumber.from(minimalDepositValue.toString()).sub(1) },
             ),
-        ).to.be.revertedWith('Pool: LTV not respected');
+        ).to.be.revertedWith('Pool: MinimalDeposit not respected');
       });
 
       it('should revert when the oracle Signature is wrong', async () => {
@@ -431,7 +431,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -440,7 +440,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -454,7 +454,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -464,7 +464,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -491,7 +491,7 @@ describe('Pool', async () => {
               loanDurationInSeconds,
               orderExtraData,
               oracleSignature,
-              { value: BigNumber.from(ltvValue.toString()) },
+              { value: BigNumber.from(minimalDepositValue.toString()) },
             ),
         ).to.be.revertedWith('Pool: NFT loan not accepted');
       });
@@ -502,7 +502,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           randomUser,
           borrower,
@@ -511,7 +511,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -525,7 +525,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -535,7 +535,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -562,7 +562,7 @@ describe('Pool', async () => {
               loanDurationInSeconds,
               orderExtraData,
               oracleSignature,
-              { value: BigNumber.from(ltvValue.toString()) },
+              { value: BigNumber.from(minimalDepositValue.toString()) },
             ),
         ).to.be.revertedWith('Pool: NFT loan not accepted');
       });
@@ -604,7 +604,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -616,7 +616,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -630,7 +630,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -640,7 +640,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -667,7 +667,7 @@ describe('Pool', async () => {
           loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
-          BigNumber.from(ltvValue.toString()),
+          BigNumber.from(minimalDepositValue.toString()),
         );
 
         const thirthyDaysInSeconds = 30 * 24 * 60 * 60;
@@ -693,7 +693,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           randomUser,
@@ -703,7 +703,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -717,7 +717,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -727,7 +727,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -754,7 +754,7 @@ describe('Pool', async () => {
           loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
-          BigNumber.from(ltvValue.toString()),
+          BigNumber.from(minimalDepositValue.toString()),
         );
 
         const thirthyDaysInSeconds = 20 * 24 * 60 * 60;
@@ -775,7 +775,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -787,7 +787,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -801,7 +801,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -811,7 +811,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -838,7 +838,7 @@ describe('Pool', async () => {
           loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
-          BigNumber.from(ltvValue.toString()),
+          BigNumber.from(minimalDepositValue.toString()),
         );
 
         // repay loan
@@ -865,7 +865,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -877,7 +877,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -891,7 +891,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -901,7 +901,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -928,7 +928,7 @@ describe('Pool', async () => {
           loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
-          BigNumber.from(ltvValue.toString()),
+          BigNumber.from(minimalDepositValue.toString()),
         );
 
         const thirthyDaysInSeconds = 30 * 24 * 60 * 60;
@@ -949,7 +949,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -961,7 +961,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -975,7 +975,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -985,7 +985,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -1012,7 +1012,7 @@ describe('Pool', async () => {
           loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
-          BigNumber.from(ltvValue.toString()),
+          BigNumber.from(minimalDepositValue.toString()),
         );
 
         // advance blockchain to loan end
@@ -1032,7 +1032,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -1041,7 +1041,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -1055,7 +1055,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -1065,7 +1065,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -1092,7 +1092,7 @@ describe('Pool', async () => {
           loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
-          BigNumber.from(ltvValue.toString()),
+          BigNumber.from(minimalDepositValue.toString()),
         );
 
         // expect wrapped NFT to be owned by borrower
@@ -1186,7 +1186,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -1195,7 +1195,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -1209,7 +1209,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -1219,7 +1219,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -1246,7 +1246,7 @@ describe('Pool', async () => {
           loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
-          BigNumber.from(ltvValue.toString()),
+          BigNumber.from(minimalDepositValue.toString()),
         );
 
         await poolProxy.connect(borrower).refundLoan(tokenId, borrower.address, {
@@ -1265,7 +1265,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -1274,7 +1274,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -1288,7 +1288,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -1298,7 +1298,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -1325,7 +1325,7 @@ describe('Pool', async () => {
           loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
-          BigNumber.from(ltvValue.toString()),
+          BigNumber.from(minimalDepositValue.toString()),
         );
 
         await expect(
@@ -1341,7 +1341,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -1350,7 +1350,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -1364,7 +1364,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -1374,7 +1374,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -1401,7 +1401,7 @@ describe('Pool', async () => {
           loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
-          BigNumber.from(ltvValue.toString()),
+          BigNumber.from(minimalDepositValue.toString()),
         );
 
         await expect(
@@ -1417,7 +1417,7 @@ describe('Pool', async () => {
           impersonatedWhaleSigner,
           initialDailyInterestRateInBps,
           seaportSettlementManager,
-          loanToValueInBps,
+          minimalDepositInBps,
           collectionAddress,
           oracleSigner,
           borrower,
@@ -1426,7 +1426,7 @@ describe('Pool', async () => {
         const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
           await buyNFTPreparationHelper();
 
-        const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+        const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
         // deposit into pool
         const deposit = ethers.utils.parseEther('100');
@@ -1440,7 +1440,7 @@ describe('Pool', async () => {
         const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
         // remaining to be paid
-        const remainingToBePaid = nftPrice - ltvValue;
+        const remainingToBePaid = nftPrice - minimalDepositValue;
 
         const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -1450,7 +1450,7 @@ describe('Pool', async () => {
           loanDurationInDays,
         );
 
-        const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+        const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
         const oracleSignature = await mockSignLoan(
           collectionAddress,
@@ -1477,7 +1477,7 @@ describe('Pool', async () => {
           loanDurationInSeconds,
           orderExtraData,
           oracleSignature,
-          BigNumber.from(ltvValue.toString()),
+          BigNumber.from(minimalDepositValue.toString()),
         );
 
         // advance blockchain to loan end
@@ -1794,7 +1794,7 @@ describe('Pool', async () => {
             impersonatedWhaleSigner,
             initialDailyInterestRateInBps,
             seaportSettlementManager,
-            loanToValueInBps,
+            minimalDepositInBps,
             collectionAddress,
             oracleSigner,
             borrower,
@@ -1816,7 +1816,7 @@ describe('Pool', async () => {
           const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
             await buyNFTPreparationHelper();
 
-          const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+          const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
           // deposit into pool
           const deposit = ethers.utils.parseEther('100');
@@ -1830,7 +1830,7 @@ describe('Pool', async () => {
           const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
           // remaining to be paid
-          const remainingToBePaid = nftPrice - ltvValue;
+          const remainingToBePaid = nftPrice - minimalDepositValue;
 
           const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -1840,7 +1840,7 @@ describe('Pool', async () => {
             loanDurationInDays,
           );
 
-          const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+          const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
           const oracleSignature = await mockSignLoan(
             collectionAddress,
@@ -1867,7 +1867,7 @@ describe('Pool', async () => {
             loanDurationInSeconds,
             orderExtraData,
             oracleSignature,
-            BigNumber.from(ltvValue.toString()),
+            BigNumber.from(minimalDepositValue.toString()),
           );
 
           // advance blockchain 29 days
@@ -1895,7 +1895,7 @@ describe('Pool', async () => {
             impersonatedWhaleSigner,
             initialDailyInterestRateInBps,
             seaportSettlementManager,
-            loanToValueInBps,
+            minimalDepositInBps,
             collectionAddress,
             oracleSigner,
             borrower,
@@ -1918,7 +1918,7 @@ describe('Pool', async () => {
           const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
             await buyNFTPreparationHelper();
 
-          const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+          const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
           // deposit into pool
           const deposit = ethers.utils.parseEther('100');
@@ -1932,7 +1932,7 @@ describe('Pool', async () => {
           const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
           // remaining to be paid
-          const remainingToBePaid = nftPrice - ltvValue;
+          const remainingToBePaid = nftPrice - minimalDepositValue;
 
           const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -1942,7 +1942,7 @@ describe('Pool', async () => {
             loanDurationInDays,
           );
 
-          const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+          const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
           const oracleSignature = await mockSignLoan(
             collectionAddress,
@@ -1969,7 +1969,7 @@ describe('Pool', async () => {
             loanDurationInSeconds,
             orderExtraData,
             oracleSignature,
-            BigNumber.from(ltvValue.toString()),
+            BigNumber.from(minimalDepositValue.toString()),
           );
 
           // advance blockchain 31 days so we can liquidate the loan
@@ -2019,7 +2019,7 @@ describe('Pool', async () => {
             impersonatedWhaleSigner,
             initialDailyInterestRateInBps,
             seaportSettlementManager,
-            loanToValueInBps,
+            minimalDepositInBps,
             collectionAddress,
             oracleSigner,
             borrower,
@@ -2042,7 +2042,7 @@ describe('Pool', async () => {
           const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
             await buyNFTPreparationHelper();
 
-          const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+          const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
           // deposit into pool
           const deposit = ethers.utils.parseEther('100');
@@ -2056,7 +2056,7 @@ describe('Pool', async () => {
           const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
           // remaining to be paid
-          const remainingToBePaid = nftPrice - ltvValue;
+          const remainingToBePaid = nftPrice - minimalDepositValue;
 
           const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -2066,7 +2066,7 @@ describe('Pool', async () => {
             loanDurationInDays,
           );
 
-          const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+          const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
           const oracleSignature = await mockSignLoan(
             collectionAddress,
@@ -2093,7 +2093,7 @@ describe('Pool', async () => {
             loanDurationInSeconds,
             orderExtraData,
             oracleSignature,
-            BigNumber.from(ltvValue.toString()),
+            BigNumber.from(minimalDepositValue.toString()),
           );
 
           // advance blockchain 31 days so we can liquidate the loan
@@ -2130,7 +2130,7 @@ describe('Pool', async () => {
             impersonatedWhaleSigner,
             initialDailyInterestRateInBps,
             seaportSettlementManager,
-            loanToValueInBps,
+            minimalDepositInBps,
             collectionAddress,
             oracleSigner,
             borrower,
@@ -2153,7 +2153,7 @@ describe('Pool', async () => {
           const { tokenId, orderExtraData, loanTimestamp, nftPrice } =
             await buyNFTPreparationHelper();
 
-          const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+          const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
           // deposit into pool
           const deposit = ethers.utils.parseEther('100');
@@ -2167,7 +2167,7 @@ describe('Pool', async () => {
           const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
           // remaining to be paid
-          const remainingToBePaid = nftPrice - ltvValue;
+          const remainingToBePaid = nftPrice - minimalDepositValue;
 
           const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -2175,7 +2175,7 @@ describe('Pool', async () => {
           const [loanPrice, adjustedRemainingLoanAmountWithInterest] =
             await poolProxy.calculateLoanPrice(remainingToBePaidInBN, loanDurationInDays);
 
-          const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+          const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
           const oracleSignature = await mockSignLoan(
             collectionAddress,
@@ -2202,7 +2202,7 @@ describe('Pool', async () => {
             loanDurationInSeconds,
             orderExtraData,
             oracleSignature,
-            BigNumber.from(ltvValue.toString()),
+            BigNumber.from(minimalDepositValue.toString()),
           );
 
           // advance blockchain 31 days so we can liquidate the loan
@@ -2240,7 +2240,7 @@ describe('Pool', async () => {
         impersonatedWhaleSigner,
         initialDailyInterestRateInBps,
         seaportSettlementManager,
-        loanToValueInBps,
+        minimalDepositInBps,
         collectionAddress,
         oracleSigner,
         borrower,
@@ -2249,7 +2249,7 @@ describe('Pool', async () => {
 
       const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
 
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+      const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
       // deposit into pool
       const deposit = ethers.utils.parseEther('100');
@@ -2263,7 +2263,7 @@ describe('Pool', async () => {
       const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
       // remaining to be paid
-      const remainingToBePaid = nftPrice - ltvValue;
+      const remainingToBePaid = nftPrice - minimalDepositValue;
 
       const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -2273,7 +2273,7 @@ describe('Pool', async () => {
         loanDurationInDays,
       );
 
-      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+      const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
       const oracleSignature = await mockSignLoan(
         collectionAddress,
@@ -2300,7 +2300,7 @@ describe('Pool', async () => {
         loanDurationInSeconds,
         orderExtraData,
         oracleSignature,
-        BigNumber.from(ltvValue.toString()),
+        BigNumber.from(minimalDepositValue.toString()),
       );
 
       // expect protocol fees to be 0 at the beginning
@@ -2369,7 +2369,7 @@ describe('Pool', async () => {
         impersonatedWhaleSigner: lender,
         initialDailyInterestRateInBps,
         seaportSettlementManager,
-        loanToValueInBps,
+        minimalDepositInBps,
         collectionAddress,
         oracleSigner,
         borrower,
@@ -2379,7 +2379,7 @@ describe('Pool', async () => {
 
       const { tokenId, orderExtraData, loanTimestamp, nftPrice } = await buyNFTPreparationHelper();
 
-      const ltvValue = (nftPrice * loanToValueInBps) / 10000 + 1;
+      const minimalDepositValue = (nftPrice * minimalDepositInBps) / 10000 + 1;
 
       // deposit into pool
       const deposit = ethers.utils.parseEther('100');
@@ -2393,7 +2393,7 @@ describe('Pool', async () => {
       const loanDurationInSeconds = loanDurationInDays * 24 * 60 * 60;
 
       // remaining to be paid
-      const remainingToBePaid = nftPrice - ltvValue;
+      const remainingToBePaid = nftPrice - minimalDepositValue;
 
       const remainingToBePaidInBN = BigNumber.from(remainingToBePaid.toString());
 
@@ -2403,7 +2403,7 @@ describe('Pool', async () => {
         loanDurationInDays,
       );
 
-      const priceWithInterest = loanPrice.add(BigNumber.from(ltvValue.toString()));
+      const priceWithInterest = loanPrice.add(BigNumber.from(minimalDepositValue.toString()));
 
       const oracleSignature = await mockSignLoan(
         collectionAddress,
@@ -2430,7 +2430,7 @@ describe('Pool', async () => {
         loanDurationInSeconds,
         orderExtraData,
         oracleSignature,
-        BigNumber.from(ltvValue.toString()),
+        BigNumber.from(minimalDepositValue.toString()),
       );
 
       // expect protocol fees to be 0 at the beginning

@@ -9,6 +9,6 @@ async function main() {
   console.log('pools:', pools);
 }
 
-// deployed to: 0x87c91Da4A71Ab7E2593aAacc4Fdc0C2379ecc160 with 20% LTV
+// deployed to: 0x87c91Da4A71Ab7E2593aAacc4Fdc0C2379ecc160 with 20% minimal deposit
 
 main();

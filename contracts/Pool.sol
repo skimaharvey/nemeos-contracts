@@ -190,7 +190,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         require(liquidator_ != address(0), "Pool: liquidator is zero address");
         require(NFTFilter_ != address(0), "Pool: NFTFilter is zero address");
         require(protocolFeeCollector_ != address(0), "Pool: protocolFeeCollector is zero address");
-        require(minimalDepositInBPS < BASIS_POINTS, "Pool: LTV too high");
+        require(minimalDepositInBPS < BASIS_POINTS, "Pool: MinimalDeposit too high");
 
         nftCollection = nftCollection_;
         minimalDepositInBPS = minimalDepositInBPS_;
@@ -239,9 +239,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         /* check if loan duration is not below 1 day */
         require(loanDuration_ >= MIN_LOAN_DURATION, "Pool: loan duration too short");
 
-        /* check if LTV is respected wit msg.value*/
-        uint256 loanDepositLTV = (msg.value * BASIS_POINTS) / priceOfNFT_;
-        require(loanDepositLTV >= minimalDepositInBPS, "Pool: LTV not respected");
+        /* check if MinimalDeposit is respected wit msg.value*/
+        uint256 loanDepositMinimalDeposit = (msg.value * BASIS_POINTS) / priceOfNFT_;
+        require(
+            loanDepositMinimalDeposit >= minimalDepositInBPS,
+            "Pool: MinimalDeposit not respected"
+        );
 
         uint256 remainingLoanAmount = priceOfNFT_ - msg.value;
 

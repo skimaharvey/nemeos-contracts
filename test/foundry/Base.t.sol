@@ -81,7 +81,7 @@ abstract contract Base_Test is Test, Constants {
         Pool poolImplemenation = new Pool();
         poolFactory.updatePoolImplementation(address(poolImplemenation));
 
-        // set ltvs to PoolFactory
+        // set minimalDeposits to PoolFactory
         uint256[] memory ltvsInBPS = new uint256[](1);
         ltvsInBPS[0] = ltvInBPS;
         poolFactory.updateAllowedLTVs(ltvsInBPS);

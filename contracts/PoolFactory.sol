@@ -30,7 +30,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable, IPoolFactory {
     /**************************************************************************/
 
     /**
-     * @notice Allowed loan to value ratio
+     * @notice Allowed minimal deposit in BPS
      */
     uint256[] public allowedMinimalDepositsInBPS;
 
@@ -142,8 +142,11 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable, IPoolFactory {
         /* Check that pool implementation is set */
         require(poolImplementation != address(0), "PoolFactory: Pool implementation not set");
 
-        /* Check that ltv is allowed */
-        require(_verifyLtv(minimalDepositInBPS_), "PoolFactory: LTV not allowed");
+        /* Check that the minimal deposit is allowed */
+        require(
+            _verifyMinimalDeposit(minimalDepositInBPS_),
+            "PoolFactory: minimalDeposit not allowed"
+        );
 
         /* Check that liquidator is allowed */
         require(_verifyLiquidator(liquidator_), "PoolFactory: Liquidator not allowed");
@@ -358,9 +361,9 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable, IPoolFactory {
         return false;
     }
 
-    function _verifyLtv(uint256 ltv_) internal view returns (bool) {
+    function _verifyMinimalDeposit(uint256 minimalDeposit_) internal view returns (bool) {
         for (uint256 i = 0; i < allowedMinimalDepositsInBPS.length; i++) {
-            if (allowedMinimalDepositsInBPS[i] == ltv_) {
+            if (allowedMinimalDepositsInBPS[i] == minimalDeposit_) {
                 return true;
             }
         }

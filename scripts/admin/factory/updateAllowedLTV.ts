@@ -5,7 +5,7 @@ const ALLOWED_LTVs_BPS = [1_000, 2_000]; //  10_000 == 100%
 
 async function main() {
   const poolFactory = await ethers.getContractAt('PoolFactory', POOL_FACTORY);
-  const tx = await poolFactory.updateAllowedLTVs(ALLOWED_LTVs_BPS);
+  const tx = await poolFactory.updateAllowedMinimalDepositsInBPS(ALLOWED_LTVs_BPS);
   await tx.wait(1);
   console.log('tx:', tx);
 }

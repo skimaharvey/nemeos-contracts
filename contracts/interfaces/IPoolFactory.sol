@@ -19,13 +19,13 @@ interface IPoolFactory {
     /**
      * @notice Emitted when a pool is created
      * @param collection Collection address
-     * @param ltv Loan to value ratio
+     * @param minimalDeposit minimal deposit in BPS
      * @param pool Pool address
      * @param deployer Pool deployer address
      */
     event PoolCreated(
         address indexed collection,
-        uint256 ltv,
+        uint256 minimalDeposit,
         address indexed pool,
         address indexed deployer
     );
@@ -38,9 +38,9 @@ interface IPoolFactory {
 
     /**
      * @notice Emitted when the minimal deposit values are updated
-     * @param allowedLTVs New allowed loan to value ratios
+     * @param allowedMinimalDeposits New allowed minimal deposits
      */
-    event UpdateAllowedMinimalDepositsInBPS(uint256[] allowedLTVs);
+    event UpdateAllowedMinimalDepositsInBPS(uint256[] allowedMinimalDeposits);
 
     /**
      * @notice Emitted when the allowed NFT filters are updated
@@ -194,7 +194,7 @@ interface IPoolFactory {
     /**
      * @notice Update the allowed Minimal Deposits in BPS
      */
-    function updateAllowedMinimalDepositsInBPS(uint256[] memory allowedLTVs) external;
+    function updateAllowedMinimalDepositsInBPS(uint256[] memory allowedMinimalDeposits) external;
 
     /**
      * @notice Update the allowed Liquidators

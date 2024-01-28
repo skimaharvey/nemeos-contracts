@@ -142,7 +142,7 @@ export async function buyNFTHelper(
   loanDurationInSeconds: number,
   orderExtraData: string,
   oracleSignature: string,
-  ltvValue: BigNumber,
+  minimalDepositValue: BigNumber,
 ) {
   const tx = await poolProxy
     .connect(borrower)
@@ -156,7 +156,7 @@ export async function buyNFTHelper(
       loanDurationInSeconds,
       orderExtraData,
       oracleSignature,
-      { value: ltvValue },
+      { value: minimalDepositValue },
     );
 
   await expect(tx)
