@@ -599,6 +599,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             endTime: endTime,
             nextPaymentTime: nextPaymentTime,
             remainingNumberOfInstallments: numberOfInstallments,
+            dailyInterestRateAtStart: dailyInterestRate,
             isClosed: false,
             isInLiquidation: false
         });

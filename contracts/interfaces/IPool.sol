@@ -102,6 +102,7 @@ interface IPool {
      * @param endTime End time
      * @param nextPaymentTime Next payment time
      * @param remainingNumberOfInstallments Remaining number of installments
+     * @param dailyInterestRateAtStart Daily interest rate at start
      * @param isClosed Is closed
      * @param isInLiquidation Is in liquidation
      */
@@ -117,6 +118,7 @@ interface IPool {
         uint256 endTime;
         uint256 nextPaymentTime;
         uint160 remainingNumberOfInstallments;
+        uint256 dailyInterestRateAtStart;
         bool isClosed;
         bool isInLiquidation;
     }
