@@ -16,73 +16,14 @@ import {
     ERC1967Upgrade
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {IPoolFactory} from "./interfaces/IPoolFactory.sol";
 
 /**
  * @title PoolFactory
  * @author Nemeos
  */
-contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
+contract PoolFactory is Ownable, ERC1967Upgrade, Initializable, IPoolFactory {
     using EnumerableSet for EnumerableSet.AddressSet;
-
-    /**************************************************************************/
-    /* Events */
-    /**************************************************************************/
-
-    /**
-     * @notice Emitted when a pool is created
-     * @param collection Collection address
-     * @param ltv Loan to value ratio
-     * @param pool Pool address
-     * @param deployer Pool deployer address
-     */
-    event PoolCreated(
-        address indexed collection,
-        uint256 ltv,
-        address pool,
-        address indexed deployer
-    );
-
-    /**
-     * @notice Emitted when the allowed liquidators are updated
-     * @param allowedLiquidators New allowed liquidators
-     */
-    event UpdateAllowedLiquidators(address[] allowedLiquidators);
-
-    /**
-     * @notice Emitted when the allowed loan to value ratios are updated
-     * @param allowedLTVs New allowed loan to value ratios
-     */
-    event UpdateAllowedLTVs(uint256[] allowedLTVs);
-
-    /**
-     * @notice Emitted when the allowed NFT filters are updated
-     * @param allowedNFTFilters New allowed NFT filters
-     */
-    event UpdateAllowedNFTFilters(address[] allowedNFTFilters);
-
-    /**
-     * @notice Emitted when the collateral factory is updated
-     * @param collateralFactory New collateral factory address
-     */
-    event UpdateCollateralFactory(address indexed collateralFactory);
-
-    /**
-     * @notice Emitted when the max pool daily interest rate is updated
-     * @param maxPoolDailyLendingRateInBPS New max pool daily interest rate
-     */
-    event UpdatemaxPoolDailyLendingRateInBPS(uint256 maxPoolDailyLendingRateInBPS);
-
-    /**
-     * @notice Emitted when the minimal deposit at creation is updated
-     * @param minimalDepositAtCreation New minimal deposit at creation
-     */
-    event UpdateMinimalDepositAtCreation(uint256 minimalDepositAtCreation);
-
-    /**
-     * @notice Emitted when the pool implementation is updated
-     * @param poolImplementation New pool implementation address
-     */
-    event UpdatePoolImplementation(address indexed poolImplementation);
 
     /**************************************************************************/
     /* States */
@@ -91,15 +32,15 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**
      * @notice Allowed loan to value ratio
      */
-    uint256[] public allowedLTVs;
+    uint256[] public allowedMinimalDepositsInBPS;
 
     /**
-     * @notice Minimal deposit at creation to avoid inflation attack
+     * @dev see {IPoolFactory-minimalDepositAtCreation}
      */
     uint256 public minimalDepositAtCreation;
 
     /**
-     * @notice Max daily rate interest for the pool (in BPS)
+     * @dev see {IPoolFactory-maxPoolDailyLendingRateInBPS}
      */
     uint256 public maxPoolDailyLendingRateInBPS;
 
@@ -114,22 +55,22 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     address[] public allowedLiquidators;
 
     /**
-     * @notice Collateral factory address
+     * @dev see {IPoolFactory-nftWrapperFactory}
      */
-    address public collateralFactory;
+    address public nftWrapperFactory;
 
     /**
-     * @notice Liquidator address
+     * @dev see {IPoolFactory-liquidator}
      */
     address liquidator;
 
     /**
-     * @notice Pool implementation address
+     * @dev see {IPoolFactory-poolImplementation}
      */
     address public poolImplementation;
 
     /**
-     * @notice Protocol fee collector address
+     * @dev see {IPoolFactory-protocolFeeCollector}
      */
     address public protocolFeeCollector;
 
@@ -139,9 +80,9 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     EnumerableSet.AddressSet private _pools;
 
     /**
-     * @notice Mapping of collection address to ltv to pool address
+     * @notice Mapping of pool address by collection and minimal deposits in BPS
      */
-    mapping(address => mapping(uint256 => address)) public poolByCollectionAndLtv;
+    mapping(address => mapping(uint256 => address)) public _poolByCollectionAndMinimalDeposits;
 
     /**************************************************************************/
     /* Constructor */
@@ -160,7 +101,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**************************************************************************/
 
     /**
-     * @notice PoolFactory initializator
+     * @dev see {IPoolFactory-initialize}
      */
     function initialize(
         address factoryOwner_,
@@ -184,26 +125,19 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**************************************************************************/
 
     /**
-     * Create a 1167 proxy pool instance
-     * @param collection_ Collection address
-     * @param minimalDepositInBPS_ Loan to value ratio
-     * @param initialDailyInterestRateInBPS_ Initial daily interest rate
-     * @param nftFilter_ NFT filter address
-     * @param liquidator_ Liquidator address
-     * @return Pool address
+     * @dev see {IPoolFactory-createPool}
      */
     function createPool(
         address collection_,
         uint256 minimalDepositInBPS_,
         uint256 initialDailyInterestRateInBPS_,
-        uint256 initialDeposit_,
         address nftFilter_,
         address liquidator_
     ) external payable onlyOwner returns (address) {
-        address collateralFactoryAddress = collateralFactory;
+        address nftWrapperFactoryAddress = nftWrapperFactory;
 
         /* Check that collateral factory is set */
-        require(collateralFactoryAddress != address(0), "PoolFactory: Collateral factory not set");
+        require(nftWrapperFactoryAddress != address(0), "PoolFactory: Collateral factory not set");
 
         /* Check that pool implementation is set */
         require(poolImplementation != address(0), "PoolFactory: Pool implementation not set");
@@ -216,13 +150,13 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
 
         /* Check if pool already exists */
         require(
-            poolByCollectionAndLtv[collection_][minimalDepositInBPS_] == address(0),
+            _poolByCollectionAndMinimalDeposits[collection_][minimalDepositInBPS_] == address(0),
             "PoolFactory: Pool already exists"
         );
 
         /* should deposit in the Pool in order to avoid inflation attack  */
         require(
-            msg.value >= minimalDepositAtCreation && msg.value == initialDeposit_,
+            msg.value >= minimalDepositAtCreation,
             "PoolFactory: ETH deposit required to be equal to initial deposit"
         );
 
@@ -230,11 +164,11 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         require(_verifyNFTFilter(nftFilter_), "PoolFactory: NFT filter not allowed");
 
         /* Check if collection already registered in collateral factory, if not create it */
-        address collectionWrapper = NFTWrapperFactory(collateralFactoryAddress).nftWrappers(
+        address collectionWrapper = NFTWrapperFactory(nftWrapperFactoryAddress).nftWrappers(
             collection_
         );
         if (collectionWrapper == address(0)) {
-            collectionWrapper = NFTWrapperFactory(collateralFactoryAddress).deployNFTWrapper(
+            collectionWrapper = NFTWrapperFactory(nftWrapperFactoryAddress).deployNFTWrapper(
                 collection_
             );
         }
@@ -243,7 +177,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
         address poolInstance = Clones.clone(poolImplementation);
 
         /* Set pool address in mapping */
-        poolByCollectionAndLtv[collection_][minimalDepositInBPS_] = poolInstance;
+        _poolByCollectionAndMinimalDeposits[collection_][minimalDepositInBPS_] = poolInstance;
 
         /* Add pool to collateral wrapper*/
         INFTWrapper(collectionWrapper).addPool(poolInstance);
@@ -274,41 +208,45 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     }
 
     /**
-     * @notice Check if address is a pool
-     * @param pool Pool address
-     * @return True if address is a pool, otherwise false
+     * @dev see {IPoolFactory-isPool}
      */
     function isPool(address pool) external view returns (bool) {
         return _pools.contains(pool);
     }
 
     /**
-     * @notice Get list of pools
-     * @return List of pool addresses
+     * @dev see {IPoolFactory-get_PoolByCollectionAndMinimalDeposits}
+     */
+    function getPoolByCollectionAndMinimalDeposits(
+        address collection_,
+        uint256 minimalDepositInBPS_
+    ) external view returns (address) {
+        return _poolByCollectionAndMinimalDeposits[collection_][minimalDepositInBPS_];
+    }
+
+    /**
+     * @dev see {IPoolFactory-getPools}
      */
     function getPools() external view returns (address[] memory) {
         return _pools.values();
     }
 
     /**
-     * @notice Get count of pools
-     * @return Count of pools
+     * @dev see {IPoolFactory-getPoolCount}
      */
     function getPoolCount() external view returns (uint256) {
         return _pools.length();
     }
 
     /**
-     * @notice Retrieves all allowed LTVs
-     * @return List of allowed LTVs
+     * @dev see {IPoolFactory-getAllowedMinimalDepositsInBPSs}
      */
-    function getallowedLTVss() external view returns (uint256[] memory) {
-        return allowedLTVs;
+    function getAllowedMinimalDepositsInBPSs() external view returns (uint256[] memory) {
+        return allowedMinimalDepositsInBPS;
     }
 
     /**
-     * @notice Retrieves all allowed NFT filters
-     * @return List of allowed NFT filters
+     * @dev see {IPoolFactory-getAllowedNFTFilters}
      */
     function getAllowedNFTFilters() external view returns (address[] memory) {
         return allowedNFTFilters;
@@ -319,71 +257,92 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     /**************************************************************************/
 
     /**
-     * @notice Get Proxy Implementation of the factory
-     * @return Implementation address
+     * @dev see {IPoolFactory-getImplementation}
      */
     function getImplementation() external view returns (address) {
         return _getImplementation();
     }
 
     /**
-     * @notice Upgrade Proxy of the factory
-     * @param newImplementation New implementation contract
-     * @param data Optional calldata
+     * @dev see {IPoolFactory-updateAllowedMinimalDepositsInBPS}
      */
-    function upgradeToAndCall(address newImplementation, bytes calldata data) external onlyOwner {
-        _upgradeToAndCall(newImplementation, data, false);
+    function updateAllowedMinimalDepositsInBPS(
+        uint256[] calldata allowedMinimalDepositsInBPS_
+    ) external onlyOwner {
+        allowedMinimalDepositsInBPS = allowedMinimalDepositsInBPS_;
+
+        emit UpdateAllowedMinimalDepositsInBPS(allowedMinimalDepositsInBPS_);
     }
 
-    function updateAllowedLTVs(uint256[] calldata allowedLTVs_) external onlyOwner {
-        allowedLTVs = allowedLTVs_;
-
-        emit UpdateAllowedLTVs(allowedLTVs_);
-    }
-
+    /**
+     * @dev see {IPoolFactory-updateAllowedLiquidators}
+     */
     function updateAllowedLiquidators(address[] calldata allowedLiquidators_) external onlyOwner {
         allowedLiquidators = allowedLiquidators_;
 
         emit UpdateAllowedLiquidators(allowedLiquidators_);
     }
 
+    /**
+     * @dev see {IPoolFactory-updateAllowedNFTFilters}
+     */
     function updateAllowedNFTFilters(address[] calldata allowedNFTFilters_) external onlyOwner {
         allowedNFTFilters = allowedNFTFilters_;
 
         emit UpdateAllowedNFTFilters(allowedNFTFilters_);
     }
 
-    function updatemaxPoolDailyLendingRateInBPS(
+    /**
+     * @dev see {IPoolFactory-updateNftWrapperFactory}
+     */
+    function updateNFTWrapperFactory(address nftWrapperFactory_) external onlyOwner {
+        nftWrapperFactory = nftWrapperFactory_;
+        emit UpdateNFTWrapperFactory(nftWrapperFactory_);
+    }
+
+    /**
+     * @dev see {IPoolFactory-updateMaxPoolDailyLendingRateInBPS}
+     */
+    function updateMaxPoolDailyLendingRateInBPS(
         uint256 maxPoolDailyLendingRateInBPS_
     ) external onlyOwner {
         maxPoolDailyLendingRateInBPS = maxPoolDailyLendingRateInBPS_;
 
-        emit UpdatemaxPoolDailyLendingRateInBPS(maxPoolDailyLendingRateInBPS_);
-    }
-
-    function updateProtocolFeeCollector(address protocolFeeCollector_) external onlyOwner {
-        protocolFeeCollector = protocolFeeCollector_;
+        emit UpdateMaxPoolDailyLendingRateInBPS(maxPoolDailyLendingRateInBPS_);
     }
 
     /**
-     * @notice Update collateral factory address
-     * @param collateralFactory_ New collateral factory address
+     * @dev see {IPoolFactory-updateProtocolFeeCollector}
      */
-    function updateCollateralFactory(address collateralFactory_) external onlyOwner {
-        collateralFactory = collateralFactory_;
-        emit UpdateCollateralFactory(collateralFactory_);
+    function updateProtocolFeeCollector(address protocolFeeCollector_) external onlyOwner {
+        protocolFeeCollector = protocolFeeCollector_;
+
+        emit UpdateProtocolFeeCollector(protocolFeeCollector_);
     }
 
+    /**
+     * @dev see {IPoolFactory-updatePoolImplementation}
+     */
     function updatePoolImplementation(address poolImplementation_) external onlyOwner {
         poolImplementation = poolImplementation_;
 
         emit UpdatePoolImplementation(poolImplementation_);
     }
 
+    /**
+     * @dev see {IPoolFactory-updateMinimalDepositAtCreation}
+     */
     function updateMinimalDepositAtCreation(uint256 minimalDepositAtCreation_) external onlyOwner {
         minimalDepositAtCreation = minimalDepositAtCreation_;
 
         emit UpdateMinimalDepositAtCreation(minimalDepositAtCreation_);
+    }
+
+    /**
+     * @dev see {IPoolFactory-upgradeToAndCall}
+     */
+    function upgradeToAndCall(address newImplementation, bytes calldata data) external onlyOwner {
+        _upgradeToAndCall(newImplementation, data, false);
     }
 
     /**************************************************************************/
@@ -400,8 +359,8 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable {
     }
 
     function _verifyLtv(uint256 ltv_) internal view returns (bool) {
-        for (uint256 i = 0; i < allowedLTVs.length; i++) {
-            if (allowedLTVs[i] == ltv_) {
+        for (uint256 i = 0; i < allowedMinimalDepositsInBPS.length; i++) {
+            if (allowedMinimalDepositsInBPS[i] == ltv_) {
                 return true;
             }
         }
