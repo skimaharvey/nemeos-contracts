@@ -4,20 +4,23 @@ pragma solidity 0.8.20;
 // libraries
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+// interfaces
+import {INFTFilter} from "./interfaces/INFTFilter.sol";
+
 /**
  * @title NFTFilter
  * @author Nemeos
  */
-contract NFTFilter {
+contract NFTFilter is INFTFilter {
     using ECDSA for *;
     /**************************************************************************/
     /* State */
     /**************************************************************************/
 
     /**
-     * @notice Loan expiration time
+     * @dev see {INFTFilter-LOAN_EXPIRATION_TIME}
      */
-    uint256 constant LOAN_EXPIRATION_TIME = 3 minutes;
+    uint256 public constant LOAN_EXPIRATION_TIME = 3 minutes;
 
     /**
      * @notice Supported settlement managers addresses
@@ -25,57 +28,19 @@ contract NFTFilter {
     address[] public supportedSettlementManagers;
 
     /**
-     * @notice address of the Oracle
+     * @dev see {INFTFilter-oracle}
      */
     address public oracle;
 
     /**
-     * @notice address of the protocol admin
+     * @dev see {INFTFilter-protocolAdmin}
      */
     address public protocolAdmin;
 
     /**
-     * @dev A mapping of addresses to a nonce.
-     *
-     * A nonce is incremented each time a customer starts a loan.
+     * @dev see {INFTFilter-customerNonces}
      */
     mapping(address => uint256) public customerNonces;
-
-    /**************************************************************************/
-    /* Events */
-    /**************************************************************************/
-
-    /**
-     * @notice Emitted when the oracle address is updated
-     * @param oracle New oracle address
-     */
-    event OracleUpdated(address oracle);
-
-    /**
-     * @notice Emitted when the supported settlement managers are updated
-     * @param supportedSettlementManagers New supported settlement managers
-     */
-    event supportedSettlementManagersUpdated(address[] supportedSettlementManagers);
-
-    /**
-     * @notice Emitted when a loan is verified
-     * @param collectionAddress_ Address of the collection
-     * @param nftID_ ID of the NFT
-     * @param priceOfNFT_ Price of the NFT
-     * @param priceIncludingFees_ Price of the NFT including the interest rate and protocol fees
-     * @param customerAddress_ Address of the customer
-     * @param settlementManager_ Address of the settlement manager
-     * @param loanTimestamp_ Timestamp of the loan
-     */
-    event LoanVerified(
-        address collectionAddress_,
-        uint256 nftID_,
-        uint256 priceOfNFT_,
-        uint256 priceIncludingFees_,
-        address customerAddress_,
-        address settlementManager_,
-        uint256 loanTimestamp_
-    );
 
     /**************************************************************************/
     /* Constructor */
@@ -95,6 +60,16 @@ contract NFTFilter {
     /* Implementation */
     /**************************************************************************/
 
+    /*
+     * @dev see {INFTFilter-getSupportedSettlementManagers}
+     */
+    function getSupportedSettlementManagers() external view returns (address[] memory) {
+        return supportedSettlementManagers;
+    }
+
+    /*
+     * @dev see {INFTFilter-verifyLoanValidity}
+     */
     function verifyLoanValidity(
         address collectionAddress_,
         uint256 nftID_,
@@ -162,9 +137,8 @@ contract NFTFilter {
     /* Admin API */
     /**************************************************************************/
 
-    /**
-     * @notice Update the oracle address
-     * @param oracle_ New oracle address
+    /*
+     * @dev see {INFTFilter-updateOracle}
      */
     function updateOracle(address oracle_) external {
         require(msg.sender == protocolAdmin, "NFTFilter: Only protocol admin can update oracle");
@@ -173,9 +147,8 @@ contract NFTFilter {
         emit OracleUpdated(oracle);
     }
 
-    /**
-     * @notice Update the supported settlement managers
-     * @param supportedSettlementManagers_ New supported settlement managers
+    /*
+     * @dev see {INFTFilter-updatesupportedSettlementManagers}
      */
     function updatesupportedSettlementManagers(
         address[] memory supportedSettlementManagers_
@@ -186,6 +159,6 @@ contract NFTFilter {
         );
         supportedSettlementManagers = supportedSettlementManagers_;
 
-        emit supportedSettlementManagersUpdated(supportedSettlementManagers);
+        emit SupportedSettlementManagersUpdated(supportedSettlementManagers);
     }
 }

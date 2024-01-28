@@ -26,6 +26,18 @@ interface INFTFilter {
         uint256 loanTimestamp_
     );
 
+    /**
+     * @notice Emitted when the oracle address is updated
+     * @param oracle New oracle address
+     */
+    event OracleUpdated(address oracle);
+
+    /**
+     * @notice Emitted when the supported settlement managers are updated
+     * @param supportedSettlementManagers New supported settlement managers
+     */
+    event SupportedSettlementManagersUpdated(address[] supportedSettlementManagers);
+
     /**************************************************************************/
     /* Implementation */
     /**************************************************************************/
@@ -35,6 +47,12 @@ interface INFTFilter {
      * @return customerNonces Customer nonce
      */
     function customerNonces(address) external view returns (uint256);
+
+    /**
+     * @notice Get the Supported settlement managers
+     * @return the supported settlement managers
+     */
+    function getSupportedSettlementManagers() external view returns (address[] memory);
 
     /**
      * @notice Get the loan expiration time
@@ -47,6 +65,26 @@ interface INFTFilter {
      * @return oracle Oracle address
      */
     function oracle() external view returns (address);
+
+    /**
+     * @notice Get the protocol admin address
+     * @return protocolAdmin Protocol admin address
+     */
+    function protocolAdmin() external view returns (address);
+
+    /**
+     * @notice Update the oracle address
+     * @param oracle_ New oracle address
+     */
+    function updateOracle(address oracle_) external;
+
+    /**
+     * @notice Update the supported settlement managers
+     * @param supportedSettlementManagers_ New supported settlement managers
+     */
+    function updatesupportedSettlementManagers(
+        address[] memory supportedSettlementManagers_
+    ) external;
 
     /**
      * @notice Verify the validity of a loan

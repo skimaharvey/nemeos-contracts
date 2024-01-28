@@ -244,7 +244,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         uint256 priceToUse = nftFloorPrice_ < priceOfNFT_ ? nftFloorPrice_ : priceOfNFT_;
 
         /* calculate the rarity premium */
-        uint256 rarityPremium = priceToUse != nftFloorPrice_ ? (priceOfNFT_ - priceToUse) : 0;
+        uint256 rarityPremium = priceOfNFT_ - priceToUse;
 
         /* check if mininalDeposit is respected wit msg.value
           the rule here is we take the minimum price between the floor price and the price of the NFT
