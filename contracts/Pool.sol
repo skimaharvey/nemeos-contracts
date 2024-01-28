@@ -45,91 +45,97 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     event LoanLiquidationRefund(address indexed token, uint256 indexed tokenId, uint256 amount);
 
     /**************************************************************************/
-    /* Structs */
-    /**************************************************************************/
-
-    /**
-     * @notice Liquidation
-     * @param liquidationStatus Liquidation status
-     * @param tokenId Token ID
-     * @param startingPrice Starting price
-     * @param startingTimeStamp Starting timestamp
-     * @param endingTimeStamp Ending timestamp
-     * @param borrower Borrower
-     */
-    struct Liquidation {
-        bool liquidationStatus;
-        uint256 tokenId;
-        uint256 startingPrice;
-        uint256 startingTimeStamp;
-        uint256 endingTimeStamp;
-        address borrower;
-    }
-
-    /**************************************************************************/
     /* State (not updatable after initialization) */
     /**************************************************************************/
 
-    /* The minimum amount of time of a loan  */
-    uint256 public constant MIN_LOAN_DURATION = 1 days;
-
-    /* The maximum amount of time of a loan  */
-    uint256 public constant MAX_LOAN_DURATION = 90 days;
-
-    /* The maximum amount of time that can pass between loan payments */
-    uint256 public constant MAX_LOAN_REFUND_INTERVAL = 30 days;
-
-    /* The protocol fee basis points */
-    uint256 public constant PROTOCOL_FEE_BASIS_POINTS = 1500; // 15% of interest fees
-
+    /**
+     * @dev see {IPool-BASIS_POINTS}
+     */
     uint256 public constant BASIS_POINTS = 10_000;
 
-    /* The minimum loan to value ratio */
-    uint256 public minimalDepositInBPS;
-
-    /* The NFT collection address that this pool lends for */
-    address public nftCollection;
-
-    /** @dev The address of the contract in charge of liquidating NFT with unpaid loans.
+    /**
+     * @dev see {IPool-liquidator}
      */
     address public liquidator;
 
-    /** @dev The address of the contract in charge of verifying the validity of the loan request.
+    /**
+     * @dev see {IPool-minimalDepositInBPS}
+     */
+    uint256 public minimalDepositInBPS;
+
+    /**
+     * @dev see {IPool-MIN_LOAN_DURATION}
+     */
+    uint256 public constant MIN_LOAN_DURATION = 1 days;
+
+    /**
+     * @dev see {IPool-MAX_LOAN_DURATION}
+     */
+    uint256 public constant MAX_LOAN_DURATION = 90 days;
+
+    /**
+     * @dev see {IPool-MAX_LOAN_REFUND_INTERVAL}
+     */
+    uint256 public constant MAX_LOAN_REFUND_INTERVAL = 30 days;
+
+    /**
+     * @dev see {IPool-nftCollection}
+     */
+    address public nftCollection;
+
+    /**
+     * @dev see {IPool-nftFilter}
      */
     address public nftFilter;
 
-    /** @dev The address of the admin in charge of collecting fees.
+    /**
+     * @dev see {IPool-PROTOCOL_FEE_BASIS_POINTS}
+     */
+    uint256 public constant PROTOCOL_FEE_BASIS_POINTS = 1500; // 15% of interest fees
+
+    /**
+     * @dev see {IPool-protocolFeeCollector}
      */
     address public protocolFeeCollector;
 
-    /** @dev The address of the contract in charge of wrapping NFTs.
+    /**
+     * @dev see {IPool-VERSION}
+     */
+    string public constant VERSION = "1.0.0";
+
+    /**
+     * @dev see {IPool-wrappedNFT}
      */
     address public wrappedNFT;
-
-    /* The Version of the contract */
-    string public constant VERSION = "1.0.0";
 
     /**************************************************************************/
     /* State */
     /**************************************************************************/
 
-    /* Number of time you will need to vest for per basis point you are lending at*/
-    uint256 public vestingTimePerBasisPoint;
-
-    /* The daily interest rate */
+    /**
+     * @dev see {IPool-dailyInterestRate}
+     */
     uint256 public dailyInterestRate;
 
-    /* The maximum daily interest rate */
+    /**
+     * @dev see {IPool-dailyInterestVoteRatePerLender}
+     */
+    mapping(address => uint256) public dailyInterestVoteRatePerLender;
+
+    /**
+     * @dev used to store the liquidation status of a loan
+     */
+    mapping(bytes32 => Liquidation) private _liquidations;
+
+    /**
+     * @dev used to store the state of a loan
+     */
+    mapping(bytes32 => Loan) private _loans;
+
+    /**
+     * @dev see {IPool-maxDailyInterestRate}
+     */
     uint256 public maxDailyInterestRate = 100; // 1% per day
-
-    /* The daily interest rate per lender */
-    mapping(address => uint256) public dailyInterestRatePerLender;
-
-    /* Liquidations */
-    mapping(bytes32 => Liquidation) public liquidations;
-
-    /* Loans */
-    mapping(bytes32 => Loan) public loans;
 
     /* All the ongoing loans */
     EnumerableSet.Bytes32Set private _ongoingLoans;
@@ -137,8 +143,15 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     /* All ongoing liquidations */
     EnumerableSet.Bytes32Set private _ongoingLiquidations;
 
-    /* Vesting time per lender */
-    mapping(address => uint256) public vestingTimePerLender;
+    /**
+     * @dev see {IPool-vestingTimePerBasisPoint}
+     */
+    uint256 public vestingTimePerBasisPoint;
+
+    /**
+     * @dev see {IPool-vestingTimeOfLender}
+     */
+    mapping(address => uint256) public vestingTimeOfLender;
 
     /**************************************************************************/
     /* Constructor */
@@ -161,6 +174,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     /* Initializer */
     /**************************************************************************/
 
+    /**
+     * @dev see {IPool-initialize}
+     */
     function initialize(
         address nftCollection_,
         uint256 minimalDepositInBPS_,
@@ -193,13 +209,16 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         );
 
         __ERC4626_init(IERC20Upgradeable(address(0)));
-        __ERC20_init(collectionName, "NFTL");
+        __ERC20_init(collectionName, "NFTL"); // todo: check the naming with team
     }
 
     /**************************************************************************/
     /* Borrower API */
     /**************************************************************************/
 
+    /**
+     * @dev see {IPool-buyNFT}
+     */
     function buyNFT(
         address collectionAddress_,
         uint256 tokenId_,
@@ -266,9 +285,142 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         );
     }
 
-    /** @dev Allows to refund a loan.
-     * @param tokenId_ The ID of the NFT.
-     * @param borrower_ The address of the borrower.
+    /**
+     * @dev see {IPool-calculateLoanPrice}
+     */
+    function calculateLoanPrice(
+        uint256 remainingLoanAmount_,
+        uint256 loanDurationInDays_
+    ) public view returns (uint256, uint256, uint256, uint160) {
+        require(remainingLoanAmount_ <= address(this).balance, "Pool: not enough assets");
+
+        /* number of payments installments */
+        uint256 numberOfInstallments = loanDurationInDays_ % (MAX_LOAN_REFUND_INTERVAL / 1 days) ==
+            0
+            ? loanDurationInDays_ / (MAX_LOAN_REFUND_INTERVAL / 1 days)
+            : (loanDurationInDays_ / (MAX_LOAN_REFUND_INTERVAL / 1 days)) + 1;
+
+        /* calculate the interests where interest amount is equal number of days * daily interest */
+        uint256 totalInterestAmount = (remainingLoanAmount_ *
+            dailyInterestRate *
+            loanDurationInDays_) / BASIS_POINTS;
+
+        /* calculate the interest amount per payment */
+        uint256 interestAmountPerPayment = totalInterestAmount % numberOfInstallments == 0
+            ? totalInterestAmount / numberOfInstallments
+            : (totalInterestAmount / numberOfInstallments) + 1;
+
+        /* calculate the total amount to be paid back with interest */
+        uint256 adjustedRemainingLoanAmountWithInterest = remainingLoanAmount_ +
+            interestAmountPerPayment *
+            numberOfInstallments;
+
+        uint256 nextPaymentAmount = adjustedRemainingLoanAmountWithInterest %
+            numberOfInstallments ==
+            0
+            ? adjustedRemainingLoanAmountWithInterest / numberOfInstallments
+            : (adjustedRemainingLoanAmountWithInterest / numberOfInstallments) + 1;
+
+        /* calculate the amount to be paid back */
+        return (
+            adjustedRemainingLoanAmountWithInterest,
+            interestAmountPerPayment,
+            nextPaymentAmount,
+            uint160(numberOfInstallments)
+        );
+    }
+
+    /**
+     * @dev see {IPool-getLiquidation}
+     */
+    function getLiquidation(bytes32 loanHash_) external view returns (Liquidation memory) {
+        return _liquidations[loanHash_];
+    }
+
+    /**
+     * @dev see {IPool-getLoan}
+     */
+    function getLoan(bytes32 loanHash_) external view returns (Loan memory) {
+        return _loans[loanHash_];
+    }
+
+    /**
+     * @dev see {IPool-liquidateLoan}
+     */
+    function liquidateLoan(uint256 tokenId_, address borrower_) external nonReentrant {
+        Loan memory loan = retrieveLoan(tokenId_, borrower_);
+
+        (tokenId_, borrower_);
+
+        /* check if loan exists */
+        require(loan.amountAtStart != 0, "Pool: loan does not exist");
+
+        /* check if loan is not closed */
+        require(!loan.isClosed && !loan.isInLiquidation, "Pool: loan is closed");
+
+        /* check if loan is expired */
+        require(block.timestamp >= loan.nextPaymentTime, "Pool: loan payment not late");
+
+        /* check if loan is not paid back */
+        require(loan.amountOwedWithInterest > 0, "Pool: loan already paid back");
+
+        bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
+
+        /* update the loan to 'in liquidation' */
+        _loans[loanHash].isInLiquidation = true;
+
+        /* remove the loan from the ongoing loans */
+        _ongoingLoans.remove(loanHash);
+
+        /* add the loan to the ongoing liquidations */
+        _ongoingLiquidations.add(loanHash);
+
+        /* burn wrapped NFT */
+        INFTWrapper(wrappedNFT).burn(tokenId_);
+
+        address collectionAddress = nftCollection;
+
+        /* transfer NFT to liquidator */
+        IERC721(collectionAddress).transferFrom(address(this), liquidator, tokenId_);
+
+        /* Create liquidation */
+        _liquidations[loanHash] = Liquidation({
+            liquidationStatus: true,
+            tokenId: tokenId_,
+            startingPrice: loan.amountAtStart,
+            startingTimeStamp: block.timestamp,
+            endingTimeStamp: block.timestamp +
+                IDutchAuctionLiquidator(liquidator).liquidationDuration(),
+            borrower: borrower_
+        });
+
+        /* call liquidator  */
+        IDutchAuctionLiquidator(liquidator).liquidate(
+            collectionAddress,
+            tokenId_,
+            loan.amountAtStart,
+            borrower_
+        );
+
+        /* emit LoanLiquidated event */
+        emit LoanLiquidated(collectionAddress, tokenId_, borrower_, liquidator, loan.amountAtStart);
+    }
+
+    /**
+     * @dev see {IPool-onGoingLoans}
+     */
+    function onGoingLoans() external view returns (Loan[] memory onGoingLoansArray) {
+        uint256 length = _ongoingLoans.length();
+        onGoingLoansArray = new Loan[](length);
+        for (uint256 i = 0; i < length; i++) {
+            bytes32 loanHash = _ongoingLoans.at(i);
+            onGoingLoansArray[i] = _loans[loanHash];
+        }
+        return onGoingLoansArray;
+    }
+
+    /**
+     * @dev see {IPool-refundLoan}
      */
     function refundLoan(uint256 tokenId_, address borrower_) external payable nonReentrant {
         Loan memory loan = retrieveLoan(tokenId_, borrower_);
@@ -346,75 +498,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         }
 
         /* store the loan */
-        loans[loanHash] = loan;
+        _loans[loanHash] = loan;
     }
 
-    /** @dev Allows to liquidate a loan when payment is late.
-     * @param tokenId_ The ID of the NFT.
-     * @param borrower_ The address of the borrower.
-     */
-    function liquidateLoan(uint256 tokenId_, address borrower_) external nonReentrant {
-        Loan memory loan = retrieveLoan(tokenId_, borrower_);
-
-        (tokenId_, borrower_);
-
-        /* check if loan exists */
-        require(loan.amountAtStart != 0, "Pool: loan does not exist");
-
-        /* check if loan is not closed */
-        require(!loan.isClosed && !loan.isInLiquidation, "Pool: loan is closed");
-
-        /* check if loan is expired */
-        require(block.timestamp >= loan.nextPaymentTime, "Pool: loan payment not late");
-
-        /* check if loan is not paid back */
-        require(loan.amountOwedWithInterest > 0, "Pool: loan already paid back");
-
-        bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
-
-        /* update the loan to 'in liquidation' */
-        loans[loanHash].isInLiquidation = true;
-
-        /* remove the loan from the ongoing loans */
-        _ongoingLoans.remove(loanHash);
-
-        /* add the loan to the ongoing liquidations */
-        _ongoingLiquidations.add(loanHash);
-
-        /* burn wrapped NFT */
-        INFTWrapper(wrappedNFT).burn(tokenId_);
-
-        address collectionAddress = nftCollection;
-
-        /* transfer NFT to liquidator */
-        IERC721(collectionAddress).transferFrom(address(this), liquidator, tokenId_);
-
-        /* Create liquidation */
-        liquidations[loanHash] = Liquidation({
-            liquidationStatus: true,
-            tokenId: tokenId_,
-            startingPrice: loan.amountAtStart,
-            startingTimeStamp: block.timestamp,
-            endingTimeStamp: block.timestamp +
-                IDutchAuctionLiquidator(liquidator).liquidationDuration(),
-            borrower: borrower_
-        });
-
-        /* call liquidator  */
-        IDutchAuctionLiquidator(liquidator).liquidate(
-            collectionAddress,
-            tokenId_,
-            loan.amountAtStart,
-            borrower_
-        );
-
-        /* emit LoanLiquidated event */
-        emit LoanLiquidated(collectionAddress, tokenId_, borrower_, liquidator, loan.amountAtStart);
-    }
-
-    /** @dev Called by the liquidator contract to refund the pool after liquidation.
-     * @param tokenId_  The ID of the NFT.
-     * @param borrower_  The address of the borrower.
+    /**
+     * @dev see {IPool-refundFromLiquidation}
      */
     function refundFromLiquidation(
         uint256 tokenId_,
@@ -427,7 +515,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         bytes32 loanHash = keccak256(abi.encodePacked(tokenId_, borrower_));
 
         /* delete liquidation */
-        delete liquidations[loanHash];
+        delete _liquidations[loanHash];
 
         /* remove the loan from the ongoing loans */
         _ongoingLiquidations.remove(loanHash);
@@ -439,7 +527,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         loan.isInLiquidation = false;
 
         /* store the loan */
-        loans[loanHash] = loan;
+        _loans[loanHash] = loan;
 
         /* take protocol fee out of the interestAmountPerPayment * number of installments remaining * protocolFee */
         uint256 protocolFees = (loan.interestAmountPerPayment *
@@ -455,76 +543,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         emit LoanLiquidationRefund(nftCollection, tokenId_, msg.value);
     }
 
-    /** @dev Allows to retrieve the ongoing loans.
-     *  @return onGoingLoansArray The array of ongoing loans.
-     */
-    function onGoingLoans() external view returns (Loan[] memory onGoingLoansArray) {
-        uint256 length = _ongoingLoans.length();
-        onGoingLoansArray = new Loan[](length);
-        for (uint256 i = 0; i < length; i++) {
-            bytes32 loanHash = _ongoingLoans.at(i);
-            onGoingLoansArray[i] = loans[loanHash];
-        }
-        return onGoingLoansArray;
-    }
-
-    /** @dev Allows to retrieve a specific loan.
-     * @param tokenId_ The ID of the NFT.
-     * @param borrower_ The address of the borrower.
-     * @return The loan of the borrower.
+    /**
+     * @dev see {IPool-retrieveLoan}
      */
     function retrieveLoan(uint256 tokenId_, address borrower_) public view returns (Loan memory) {
-        return loans[keccak256(abi.encodePacked(tokenId_, borrower_))];
-    }
-
-    /** @dev Allows to calculate the price of a loan.
-     * @param remainingLoanAmount_ The remaining amount of the loan.
-     * @param loanDurationInDays_ The duration of the loan in days.
-     * @return adjustedRemainingLoanAmountWithInterest The total amount to be paid back with interest.
-     * @return interestAmount The amount of interest to be paid back per payment.
-     * @return nextPaymentAmount The amount to be paid back per payment.
-     * @return numberOfInstallments The number of payments installments.
-     */
-    function calculateLoanPrice(
-        uint256 remainingLoanAmount_,
-        uint256 loanDurationInDays_
-    ) public view returns (uint256, uint256, uint256, uint160) {
-        require(remainingLoanAmount_ <= address(this).balance, "Pool: not enough assets");
-
-        /* number of payments installments */
-        uint256 numberOfInstallments = loanDurationInDays_ % (MAX_LOAN_REFUND_INTERVAL / 1 days) ==
-            0
-            ? loanDurationInDays_ / (MAX_LOAN_REFUND_INTERVAL / 1 days)
-            : (loanDurationInDays_ / (MAX_LOAN_REFUND_INTERVAL / 1 days)) + 1;
-
-        /* calculate the interests where interest amount is equal number of days * daily interest */
-        uint256 totalInterestAmount = (remainingLoanAmount_ *
-            dailyInterestRate *
-            loanDurationInDays_) / BASIS_POINTS;
-
-        /* calculate the interest amount per payment */
-        uint256 interestAmountPerPayment = totalInterestAmount % numberOfInstallments == 0
-            ? totalInterestAmount / numberOfInstallments
-            : (totalInterestAmount / numberOfInstallments) + 1;
-
-        /* calculate the total amount to be paid back with interest */
-        uint256 adjustedRemainingLoanAmountWithInterest = remainingLoanAmount_ +
-            interestAmountPerPayment *
-            numberOfInstallments;
-
-        uint256 nextPaymentAmount = adjustedRemainingLoanAmountWithInterest %
-            numberOfInstallments ==
-            0
-            ? adjustedRemainingLoanAmountWithInterest / numberOfInstallments
-            : (adjustedRemainingLoanAmountWithInterest / numberOfInstallments) + 1;
-
-        /* calculate the amount to be paid back */
-        return (
-            adjustedRemainingLoanAmountWithInterest,
-            interestAmountPerPayment,
-            nextPaymentAmount,
-            uint160(numberOfInstallments)
-        );
+        return _loans[keccak256(abi.encodePacked(tokenId_, borrower_))];
     }
 
     /**************************************************************************/
@@ -583,7 +606,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         _ongoingLoans.add(loanHash);
 
         /* store the loan */
-        loans[loanHash] = loan;
+        _loans[loanHash] = loan;
 
         return amountOwedWithInterest;
     }
@@ -616,10 +639,8 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     /* Lender API */
     /**************************************************************************/
 
-    /** @dev Was created in order to deposit native token into the pool and vote for a daily interest rate.
-     * @param receiver_ The address of the receiver.
-     * @param dailyInterestRate_ The daily interest rate requested by the lender.
-     * @return shares The number of shares minted.
+    /**
+     * @dev see {IPool-depositAndVote}
      */
     function depositAndVote(
         address receiver_,
@@ -651,10 +672,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     /**************************************************************************/
 
     function _updateVestingTime(uint256 dailyInterestRate_) internal {
-        uint256 currentVestingTime = vestingTimePerLender[msg.sender];
+        uint256 currentVestingTime = vestingTimeOfLender[msg.sender];
         uint256 newVestingTime = block.timestamp + (dailyInterestRate_ * vestingTimePerBasisPoint);
         if (currentVestingTime < newVestingTime) {
-            vestingTimePerLender[msg.sender] = newVestingTime;
+            vestingTimeOfLender[msg.sender] = newVestingTime;
         }
     }
 
@@ -668,17 +689,17 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         uint256 newDailyInterestRate = ((currentDailyInterestRate * previousNumberOfShares) +
             (dailyInterestRate_ * newShares_)) / (previousNumberOfShares + newShares_);
 
-        /* Current dailyInterestRatePerLender */
-        uint256 currentDailyInterestRatePerLender = dailyInterestRatePerLender[msg.sender];
+        /* Current dailyInterestVoteRatePerLender */
+        uint256 currentDailyInterestVoteRatePerLender = dailyInterestVoteRatePerLender[msg.sender];
 
         uint256 currentNumberOfShares = balanceOf(msg.sender);
 
-        uint256 newDailyInterestRatePerLender = ((currentDailyInterestRatePerLender *
+        uint256 newDailyInterestVoteRatePerLender = ((currentDailyInterestVoteRatePerLender *
             currentNumberOfShares) + (dailyInterestRate_ * newShares_)) /
             (currentNumberOfShares + newShares_);
 
         /* Update the daily interest rate for this specific lender */
-        dailyInterestRatePerLender[msg.sender] = newDailyInterestRatePerLender;
+        dailyInterestVoteRatePerLender[msg.sender] = newDailyInterestVoteRatePerLender;
 
         /* Update the daily interest rate of the pool */
         dailyInterestRate = newDailyInterestRate;
@@ -690,12 +711,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
 
         uint256 newDailyInterestRate = (totalShares - burntShares) != 0
             ? ((currentDailyInterestRate * totalShares) -
-                (dailyInterestRatePerLender[owner] * burntShares)) / (totalShares - burntShares)
+                (dailyInterestVoteRatePerLender[owner] * burntShares)) / (totalShares - burntShares)
             : 0;
 
         /* If all shares of msg.sender are burnt, set their daily interest rate to 0 */
         if (burntShares == totalShares) {
-            dailyInterestRatePerLender[owner] = 0;
+            dailyInterestVoteRatePerLender[owner] = 0;
         }
 
         /* Update the daily interest rate of the pool */
@@ -709,7 +730,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     /** @dev See {IERC4626-deposit}.
      * This function is overriden to prevent deposit of non-native tokens.
      */
-    function deposit(uint256, address) public override returns (uint256) {
+    function deposit(uint256, address) public pure override returns (uint256) {
         revert("only native tokens accepted");
     }
 
@@ -717,7 +738,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
      *
      * This function is overriden to prevent minting of non-native tokens.
      */
-    function mint(uint256, address) public virtual override returns (uint256) {
+    function mint(uint256, address) public pure virtual override returns (uint256) {
         revert("only native tokens accepted");
     }
 
@@ -725,14 +746,14 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
      * Was modified to include the vesting logic.
      */
     function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
+        uint256 shares_,
+        address receiver_,
+        address owner_
     ) public virtual override returns (uint256) {
-        require(shares <= maxRedeem(owner), "ERC4626: redeem more than max");
+        require(shares_ <= maxRedeem(owner_), "ERC4626: redeem more than max");
 
-        uint256 assets = previewRedeem(shares);
-        _withdraw(_msgSender(), receiver, owner, assets, shares);
+        uint256 assets = previewRedeem(shares_);
+        _withdraw(_msgSender(), receiver_, owner_, assets, shares_);
 
         return assets;
     }
@@ -766,20 +787,23 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         }
     }
 
-    /** @dev Modified version of {IERC4626-totalAssets} that supports ETH as an asset
+    /** @dev Modified version of {IERC4626-totalAssets} so that it supports native tokens.
      * @return The total value of the assets held by the pool at the moment.
      */
     function totalAssetsInPool() public view returns (uint256) {
         return address(this).balance;
     }
 
+    /** @dev Modified version of {IERC4626-maxWithdraw}
+     * returns the total assets in Pool plus as well the ongoings loans and liquidations.
+     */
     function totalAssets() public view override returns (uint256) {
         /* calculate the total amount owed from onGoingLoans */
         uint256 totatOnGoingLoansAmountOwed;
         uint256 numberOfOnGoingLoans = _ongoingLoans.length();
         for (uint256 i = 0; i < numberOfOnGoingLoans; i++) {
             bytes32 loanHash = _ongoingLoans.at(i);
-            Loan memory loan = loans[loanHash];
+            Loan memory loan = _loans[loanHash];
             totatOnGoingLoansAmountOwed += (loan.amountOwedWithInterest -
                 (loan.remainingNumberOfInstallments * loan.interestAmountPerPayment));
         }
@@ -791,7 +815,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
 
         for (uint256 i = 0; i < numberOfOnGoingLiquidations; i++) {
             bytes32 loanHash = _ongoingLiquidations.at(i);
-            Liquidation memory liquidation = liquidations[loanHash];
+            Liquidation memory liquidation = _liquidations[loanHash];
             totatOnGoingLiquidationsAmountOwed += _currentLiquidatedPrice(
                 liquidation.startingTimeStamp,
                 liquidation.endingTimeStamp,
@@ -835,7 +859,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         uint256 shares
     ) internal override {
         /* check that vesting time is respected */
-        require(block.timestamp >= vestingTimePerLender[owner], "Pool: vesting time not respected");
+        require(block.timestamp >= vestingTimeOfLender[owner], "Pool: vesting time not respected");
 
         /* update the vesting time for lender */
         _updateDailyInterestRateOnWithdrawal(balanceOf(owner), owner);
@@ -858,6 +882,21 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     /* Admin API */
     /**************************************************************************/
 
+    /**
+     * @dev see {IPool-updateMaxDailyInterestRate}
+     */
+    function updateMaxDailyInterestRate(
+        uint256 maxDailyInterestRate_
+    ) external onlyProtocolFeeCollector {
+        require(maxDailyInterestRate_ <= BASIS_POINTS, "Pool: maxDailyInterestRate too high");
+        maxDailyInterestRate = maxDailyInterestRate_;
+
+        emit UpdateMaxDailyInterestRate(maxDailyInterestRate_);
+    }
+
+    /**
+     * @dev see {IPool-updateVestingTimePerBasisPoint}
+     */
     function updateVestingTimePerBasisPoint(
         uint256 vestingTimePerBasisPoint_
     ) external onlyProtocolFeeCollector {
@@ -865,13 +904,4 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
 
         emit UpdateVestingTimePerBasisPoint(vestingTimePerBasisPoint_);
     }
-
-    function updateMaxDailyInterestRate(uint256 maxDailyInterestRate_) external {
-        require(maxDailyInterestRate_ <= BASIS_POINTS, "Pool: maxDailyInterestRate too high");
-        maxDailyInterestRate = maxDailyInterestRate_;
-
-        emit UpdateMaxDailyInterestRate(maxDailyInterestRate_);
-    }
-
-    // TODO: add pause/unpause logic
 }

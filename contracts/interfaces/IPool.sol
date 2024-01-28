@@ -90,6 +90,21 @@ interface IPool {
     /* Structs */
     /**************************************************************************/
 
+    /**
+     * @notice Liquidation
+     * @param borrower Borrower address
+     * @param tokenID Token ID
+     * @param amountOwedWithInterest Amount owed with interest
+     * @param nextPaymentAmount Next payment amount
+     * @param interestAmountPerPayment Interest amount per payment
+     * @param loanDuration Loan duration
+     * @param startTime Start time
+     * @param endTime End time
+     * @param nextPaymentTime Next payment time
+     * @param remainingNumberOfInstallments Remaining number of installments
+     * @param isClosed Is closed
+     * @param isInLiquidation Is in liquidation
+     */
     struct Loan {
         address borrower;
         uint256 tokenID;
@@ -104,6 +119,24 @@ interface IPool {
         uint160 remainingNumberOfInstallments;
         bool isClosed;
         bool isInLiquidation;
+    }
+
+    /**
+     * @notice Liquidation
+     * @param liquidationStatus Liquidation status
+     * @param tokenId Token ID
+     * @param startingPrice Starting price
+     * @param startingTimeStamp Starting timestamp
+     * @param endingTimeStamp Ending timestamp
+     * @param borrower Borrower
+     */
+    struct Liquidation {
+        bool liquidationStatus;
+        uint256 tokenId;
+        uint256 startingPrice;
+        uint256 startingTimeStamp;
+        uint256 endingTimeStamp;
+        address borrower;
     }
 
     /**************************************************************************/
@@ -170,7 +203,7 @@ interface IPool {
     /**
      * @notice Return the daily interest voted by the lender
      */
-    function dailyInterestRatePerLender(address lender) external view returns (uint256);
+    function dailyInterestVoteRatePerLender(address lender) external view returns (uint256);
 
     /**
      * @notice Was created in order to deposit native token into the pool and vote for a daily interest rate.
@@ -211,6 +244,18 @@ interface IPool {
     function liquidateLoan(uint256 tokenId, address borrower) external;
 
     /**
+     * @notice Return the liquidation of a loan.
+     * @param loanHash The hash of the loan.
+     */
+    function getLiquidation(bytes32 loanHash) external view returns (Liquidation memory);
+
+    /**
+     * @notice Return the loan of a borrower.
+     * @param loanHash The hash of the loan.
+     */
+    function getLoan(bytes32 loanHash) external view returns (Loan memory);
+
+    /**
      * @notice Return the minimal deposit required when taking a loan (in basis points)
      */
     function minimalDepositInBPS() external view returns (uint256);
@@ -221,9 +266,24 @@ interface IPool {
     function liquidator() external view returns (address);
 
     /**
-     * @notice Return the maximum loan interval in seconds
+     * @notice Return the maximum amount of time of a loan
      */
     function MAX_LOAN_REFUND_INTERVAL() external view returns (uint256);
+
+    /**
+     * @notice Return the maximum daily interest rate
+     */
+    function MAX_LOAN_DURATION() external view returns (uint256);
+
+    /**
+     * @notice Return the maximum daily interest rate
+     */
+    function maxDailyInterestRate() external view returns (uint256);
+
+    /**
+     * @notice Return the minimum loan duration in seconds
+     */
+    function MIN_LOAN_DURATION() external view returns (uint256);
 
     /**
      * @notice Return the nft Collection address that the pool is lending for
@@ -276,10 +336,32 @@ interface IPool {
     function refundFromLiquidation(uint256 tokenId, address borrower) external payable;
 
     /**
+     * @notice Update the maximum daily interest rate
+     * @param newMaxDailyInterestRate New maximum daily interest rate
+     */
+    function updateMaxDailyInterestRate(uint256 newMaxDailyInterestRate) external;
+
+    /**
+     * @notice Update the vesting time per basis point for lenders
+     * @param newVestingTimePerBasisPoint New vesting time per basis point
+     */
+    function updateVestingTimePerBasisPoint(uint256 newVestingTimePerBasisPoint) external;
+
+    /**
      * @notice Return the time you will need to vest for per basis point you are lending at
      * the higher the basis point the longer the vesting time
      */
     function vestingTimePerBasisPoint() external view returns (uint256);
+
+    /**
+     * @notice Return the version of the pool
+     */
+    function VERSION() external view returns (string memory);
+
+    /**
+     * @notice Return the vesting time of a lender
+     */
+    function vestingTimeOfLender(address lender) external view returns (uint256);
 
     /**
      * @notice Return the address of the collection wrapper
