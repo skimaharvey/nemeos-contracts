@@ -1613,7 +1613,7 @@ describe('Pool', async () => {
 
         const lender1BalanceBeforeWithdraw = await ethers.provider.getBalance(lender1.address);
 
-        const lender1Assets = await poolProxy.maxWithdrawAvailable(lender1.address);
+        const lender1Assets = await poolProxy.maxWithdraw(lender1.address);
         const lender1Shares = await poolProxy.balanceOf(lender1.address);
 
         const withdrawTx = await poolProxy

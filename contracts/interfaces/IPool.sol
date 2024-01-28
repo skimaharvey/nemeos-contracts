@@ -101,7 +101,6 @@ interface IPool {
      * @param interestAmountPerPayment Interest amount per payment
      * @param loanDuration Loan duration
      * @param startTime Start time
-     * @param endTime End time
      * @param nextPaymentTime Next payment time
      * @param remainingNumberOfInstallments Remaining number of installments
      * @param dailyInterestRateAtStart Daily interest rate at start
@@ -117,7 +116,6 @@ interface IPool {
         uint256 interestAmountPerPayment;
         uint256 loanDuration;
         uint256 startTime;
-        uint256 endTime;
         uint256 nextPaymentTime;
         uint160 remainingNumberOfInstallments;
         uint256 dailyInterestRateAtStart;

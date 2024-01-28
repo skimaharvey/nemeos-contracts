@@ -78,7 +78,7 @@ contract NFTWrapper is ERC721, ReentrancyGuard, Initializable, INFTWrapper {
     /**
      * @dev see {INFTWrapper-burn}
      */
-    function burn(uint256 tokenId_) external nonReentrant onlyPool {
+    function burn(uint256 tokenId_) external onlyPool {
         _burn(tokenId_);
 
         emit NFTBurnt(tokenId_, msg.sender);

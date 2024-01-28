@@ -507,9 +507,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         /* check if loan is not closed */
         require(!loan.isClosed && !loan.isInLiquidation, "Pool: loan is closed");
 
-        /* check if loan is not expired */
+        /* check if loan is not expired or next payment has not passed */
         require(
-            block.timestamp < loan.endTime && block.timestamp < loan.nextPaymentTime,
+            block.timestamp < loan.startTime + loan.loanDuration &&
+                block.timestamp < loan.nextPaymentTime,
             "Pool: loan expired"
         );
 
@@ -598,12 +599,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             ? msg.value - liquidation.remainingAmountOwed
             : 0;
 
-        /* refund the surplus to the borrower */
-        if (refundSurplus != 0) {
-            /* we do not check for success here because we do not want to revert if the transfer fails */
-            borrower_.call{value: refundSurplus}("");
-        }
-
         /* delete liquidation */
         delete _liquidations[loanHash];
 
@@ -629,6 +624,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
 
         /* mint shares to protocolFeeCollector */
         _mint(protocolFeeCollector, previewDeposit(protocolFees));
+
+        /* refund the surplus to the borrower */
+        if (refundSurplus != 0) {
+            /* we do not check for success here because we do not want to revert if the transfer fails */
+            borrower_.call{value: refundSurplus}("");
+        }
 
         emit LoanLiquidationRefund(nftCollection, tokenId_, msg.value);
     }
@@ -668,9 +669,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             "Pool: amount to be paid back too high"
         );
 
-        /* calculate end time */
-        uint256 endTime = block.timestamp + loanDuration_;
-
         /* calculate the next payment time */
         uint256 nextPaymentTime = loanDuration_ > MAX_LOAN_REFUND_INTERVAL
             ? block.timestamp + MAX_LOAN_REFUND_INTERVAL
@@ -685,7 +683,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             interestAmountPerPayment: interestAmountPerPayment,
             loanDuration: loanDuration_,
             startTime: block.timestamp,
-            endTime: endTime,
             nextPaymentTime: nextPaymentTime,
             remainingNumberOfInstallments: numberOfInstallments,
             dailyInterestRateAtStart: dailyInterestRate,
@@ -835,51 +832,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         revert("only native tokens accepted");
     }
 
-    /** @dev See {IERC4626-redeem}.
-     * Was modified to include the vesting logic.
-     */
-    function redeem(
-        uint256 shares_,
-        address receiver_,
-        address owner_
-    ) public virtual override returns (uint256) {
-        require(shares_ <= maxRedeem(owner_), "ERC4626: redeem more than max");
-
-        uint256 assets = previewRedeem(shares_);
-        _withdraw(_msgSender(), receiver_, owner_, assets, shares_);
-
-        return assets;
-    }
-
-    /** @dev See {IERC4626-withdraw}.
-     * Was modified to include the vesting logic.
-     */
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) public override returns (uint256) {
-        require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
-
-        uint256 shares = previewWithdraw(assets);
-
-        _withdraw(_msgSender(), receiver, owner, assets, shares);
-
-        return shares;
-    }
-
-    /** @dev Modified version of {IERC4626-maxWithdraw}
-     * returns what is widrawable depending on the balance held by the pool.
-     */
-    function maxWithdrawAvailable(address owner) public view returns (uint256) {
-        uint256 expectedBalance = _convertToAssets(balanceOf(owner), MathUpgradeable.Rounding.Down);
-        if (expectedBalance >= address(this).balance) {
-            return address(this).balance;
-        } else {
-            return expectedBalance;
-        }
-    }
-
     /** @dev Modified version of {IERC4626-totalAssets} so that it supports native tokens.
      * @return The total value of the assets held by the pool at the moment.
      */
@@ -887,7 +839,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         return address(this).balance;
     }
 
-    /** @dev Modified version of {IERC4626-maxWithdraw}
+    /** @dev Modified version of {IERC4626-totalAssets}
      * returns the total assets in Pool plus as well the ongoings loans and liquidations.
      */
     function totalAssets() public view override returns (uint256) {
@@ -919,6 +871,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             totalAssetsInPool() + totatOnGoingLoansAmountOwed + totatOnGoingLiquidationsAmountOwed;
     }
 
+    /** @dev Modified version of {IERC4626-_deposit}
+     * Removed logic related to ERC20 tokens.
+     */
     function _deposit(
         address caller,
         address receiver,
@@ -929,7 +884,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         emit Deposit(caller, receiver, assets, shares);
     }
 
-    // todo: fuzz function
     function _convertToShares(
         uint256 assets,
         MathUpgradeable.Rounding rounding
@@ -942,6 +896,9 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             );
     }
 
+    /** @dev Modified version of {IERC4626-_deposit}
+     * Added the logic to transfer native tokens.
+     */
     function _withdraw(
         address caller,
         address receiver,
@@ -954,17 +911,13 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
 
         /* update the vesting time for lender */
         _updateDailyInterestRateOnWithdrawal(balanceOf(owner), owner);
-        // If _asset is ERC777, `transfer` can trigger a reentrancy AFTER the transfer happens through the
-        // `tokensReceived` hook. On the other hand, the `tokensToSend` hook, that is triggered before the transfer,
-        // calls the vault, which is assumed not malicious.
-        //
-        // Conclusion: we need to do the transfer after the burn so that any reentrancy would happen after the
-        // shares are burned and after the assets are transferred, which is a valid state.
+
         _burn(owner, shares);
 
         require(receiver == owner, "Pool: receiver is not owner");
-        // slither-disable-next-line reentrancy-no-eth
-        payable(receiver).transfer(assets);
+
+        (bool success, ) = receiver.call{value: assets}("");
+        require(success, "Pool: transfer failed");
 
         emit Withdraw(caller, receiver, owner, assets, shares);
     }

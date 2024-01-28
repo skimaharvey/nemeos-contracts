@@ -4,7 +4,7 @@ out = 'out'
 libs = ['node_modules','lib']
 cache_path = 'forge-cache'
 test = 'tests/foundry'
-solc_version = "0.8.19"
+solc_version = "0.8.20"
 FOUNDRY_VIA_IR = true
 [fuzz]
 runs = 10_000

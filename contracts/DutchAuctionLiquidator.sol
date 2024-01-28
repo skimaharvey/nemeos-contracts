@@ -28,7 +28,7 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable, IDutchAuction
     /**
      * @dev see {IDutchAuctionLiquidator-POOLS_FACTORY}
      */
-    address public POOLS_FACTORY;
+    address public immutable POOLS_FACTORY;
 
     /* stores liquidations */
     mapping(address => mapping(uint256 => Liquidation)) private _liquidations;

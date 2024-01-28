@@ -35,7 +35,7 @@ contract NFTFilter is INFTFilter {
     /**
      * @dev see {INFTFilter-protocolAdmin}
      */
-    address public protocolAdmin;
+    address public immutable protocolAdmin;
 
     /**
      * @dev see {INFTFilter-customerNonces}

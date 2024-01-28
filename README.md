@@ -21,3 +21,7 @@ If borrower fails to repay, the Wrapper will be burnt and the NFT will be send t
 
 - We are aware that the protocol is not fully compliant with the ERC-4626 standard as we wanted to use native tokens but still found it useful to implement the standard as we might in the future accept other tokens and could as well still use the logic of shares that comes with vaults.
 - The NFT collection we will support will be added to the PoolFactory contract by the team. We will make sure they are compliant with the ERC-721 standard and our protocol. We will not allow NFT that have 'weird' properties that could make it dangerous to lend against them.
+- we purposely do not use `safeTransferFrom` in the `Pool` as we dont see any reason to use it.
+- `Oracle` in the `NFTFilter` is an offchain agent ran by Nemeos in charge of verifying the validity of the loan (including params like the `settlementManager`, coherent floor price, etc.).
+
+**Note**: Foundry tests need to be adapted to the latest changes (will update soon)

@@ -170,6 +170,7 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable, IPoolFactory {
         address collectionWrapper = NFTWrapperFactory(nftWrapperFactoryAddress).nftWrappers(
             collection_
         );
+
         if (collectionWrapper == address(0)) {
             collectionWrapper = NFTWrapperFactory(nftWrapperFactoryAddress).deployNFTWrapper(
                 collection_
