@@ -564,7 +564,18 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
                 loan.amountAtStart
             );
         } else {
-            loan.nextPaymentTime += MAX_LOAN_REFUND_INTERVAL;
+            /* Adjust next payment time considering the original loan duration */
+            uint256 remainingDuration = (loan.startTime + loan.loanDuration) > block.timestamp
+                ? (loan.startTime + loan.loanDuration) - block.timestamp
+                : 0;
+            loan.nextPaymentTime =
+                block.timestamp +
+                (
+                    remainingDuration < MAX_LOAN_REFUND_INTERVAL
+                        ? remainingDuration
+                        : MAX_LOAN_REFUND_INTERVAL
+                );
+
             loan.nextPaymentAmount = loan.amountOwedWithInterest <= loan.nextPaymentAmount
                 ? loan.amountOwedWithInterest
                 : loan.nextPaymentAmount;
