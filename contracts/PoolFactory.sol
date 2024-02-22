@@ -60,11 +60,6 @@ contract PoolFactory is Ownable, ERC1967Upgrade, Initializable, IPoolFactory {
     address public nftWrapperFactory;
 
     /**
-     * @dev see {IPoolFactory-liquidator}
-     */
-    address liquidator;
-
-    /**
      * @dev see {IPoolFactory-poolImplementation}
      */
     address public poolImplementation;

@@ -16,7 +16,6 @@ import {
     IERC20Upgradeable,
     MathUpgradeable
 } from "./libs/ModifiedERC4626Upgradeable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
