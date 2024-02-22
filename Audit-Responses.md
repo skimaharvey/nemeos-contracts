@@ -61,3 +61,9 @@ Fixed
 # Nem 16
 
 Aknowledged.
+
+# Nem 17
+
+Aknowledged. We are not using `Clone2` so pools should not be deployed at the same addresses. Since the signature includes the pool address, the signature will not be the same.
+
+# Nem 18
