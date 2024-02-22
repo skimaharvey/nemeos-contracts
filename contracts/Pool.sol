@@ -195,7 +195,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         require(liquidator_ != address(0), "Pool: liquidator is zero address");
         require(NFTFilter_ != address(0), "Pool: NFTFilter is zero address");
         require(protocolFeeCollector_ != address(0), "Pool: protocolFeeCollector is zero address");
-        require(minimalDepositInBPS < BASIS_POINTS, "Pool: MinimalDeposit too high");
+        require(minimalDepositInBPS_ < BASIS_POINTS, "Pool: MinimalDeposit too high");
 
         nftCollection = nftCollection_;
         minimalDepositInBPS = minimalDepositInBPS_;

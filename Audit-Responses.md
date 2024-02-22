@@ -53,3 +53,7 @@ Aknowledged.
 # Nem 14
 
 Aknowledged.
+
+# Nem 15
+
+Fixed
