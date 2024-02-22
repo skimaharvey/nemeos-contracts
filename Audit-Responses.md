@@ -73,3 +73,11 @@ Aknowledged.
 # Nem 19
 
 Aknowledged.
+
+# Nem 20
+
+Fixed. Change solidity version to 0.8.19
+
+# Nem 21
+
+Aknowledged.
