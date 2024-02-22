@@ -93,3 +93,7 @@ Our interest rate mechanism intentionally differs from Compound's. We believe it
 Compound operates as a perpetual lending protocol, where loans have no set completion date and interest accrues daily. In such a scenario, an algorithmic interest rate mechanism is necessary to encourage borrowers to repay their loans promptly during liquidity shortages.
 
 In contrast, our loans have a predetermined repayment schedule, typically 90 days. This structure provides liquidity providers (LPs) with visibility into available liquidity. Also, our fixed-rate design aims to enhance user-friendliness. Borrowers know exactly in advance how much they will repay, simplifying the borrowing process. In the event of a liquidity shortage, new LPs may adjust future loan rates upward, thereby restoring equilibrium between supply and demand.
+
+# Nem 24
+
+We are doing this on purpose to avoid potentiation DoS attacks from the borrow.
