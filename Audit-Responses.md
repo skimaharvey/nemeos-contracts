@@ -21,3 +21,7 @@ Removed `collectionAddress_` and usig `msg.sender` instead
 # NEM 6
 
 Made `NFT` a `non-transferable` token
+
+# NEM 7
+
+See `Nemeos_floor.pdf`for the floor calculation
