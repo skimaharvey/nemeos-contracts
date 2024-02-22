@@ -892,6 +892,22 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             totalAssetsInPool() + totatOnGoingLoansAmountOwed + totatOnGoingLiquidationsAmountOwed;
     }
 
+    /** @dev Modified version of {IERC20-transfer}
+     * Removed logic related to ERC20 tokens.
+     */
+    function transfer(
+        address to,
+        uint256 amount
+    ) public override(ERC20Upgradeable, IERC20Upgradeable) returns (bool) {
+        require(
+            block.timestamp >= vestingTimeOfLender[msg.sender],
+            "Pool: vesting time not respected"
+        );
+        address owner = _msgSender();
+        _transfer(owner, to, amount);
+        return true;
+    }
+
     /** @dev Modified version of {IERC20-transferFrom}
      * Removed logic related to ERC20 tokens.
      */

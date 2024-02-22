@@ -11,3 +11,7 @@ The key modification involves dynamically calculating the `nextPaymentTime` base
 Overrided `transferFrom` and applied the vesting logic there
 
 # NEM 4
+
+Overrided `transfer` and applied the vesting logic there
+
+# NEM 5
