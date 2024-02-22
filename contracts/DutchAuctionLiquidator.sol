@@ -132,6 +132,11 @@ contract DutchAuctionLiquidator is ReentrancyGuard, Initializable, IDutchAuction
 
         /* Transfer liquidated to winner */
         IERC721(liquidatedToken).safeTransferFrom(address(this), msg.sender, liquidatedTokenId);
+
+        /* Refund excess amount */
+        if (msg.value > currentPrice) {
+            payable(msg.sender).transfer(msg.value - currentPrice);
+        }
     }
 
     /**************************************************************************/
