@@ -69,6 +69,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     uint256 public constant MIN_LOAN_DURATION = 1 days;
 
     /**
+     * @dev see {IPool-MIN_VESTING_TIME}
+     */
+    uint256 public constant MIN_VESTING_TIME = 1 days;
+
+    /**
      * @dev see {IPool-MAX_LOAN_DURATION}
      */
     uint256 public constant MAX_LOAN_DURATION = 90 days;
@@ -763,7 +768,12 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
 
     function _updateVestingTime(uint256 dailyInterestRate_) internal {
         uint256 currentVestingTime = vestingTimeOfLender[msg.sender];
-        uint256 newVestingTime = block.timestamp + (dailyInterestRate_ * vestingTimePerBasisPoint);
+        uint256 addedVestingTime = (dailyInterestRate_ * vestingTimePerBasisPoint);
+        if (MIN_VESTING_TIME > addedVestingTime) {
+            addedVestingTime = MIN_VESTING_TIME;
+        }
+        uint256 newVestingTime = block.timestamp + addedVestingTime;
+
         if (currentVestingTime < newVestingTime) {
             vestingTimeOfLender[msg.sender] = newVestingTime;
         }

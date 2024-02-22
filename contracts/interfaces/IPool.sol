@@ -298,6 +298,11 @@ interface IPool {
     function MIN_LOAN_DURATION() external view returns (uint256);
 
     /**
+     * @notice Return the minimum vesting time
+     */
+    function MIN_VESTING_TIME() external view returns (uint256);
+
+    /**
      * @notice Return the nft Collection address that the pool is lending for
      */
     function nftCollection() external view returns (address);
