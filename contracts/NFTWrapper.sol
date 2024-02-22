@@ -123,4 +123,25 @@ contract NFTWrapper is ERC721, ReentrancyGuard, Initializable, INFTWrapper {
     function pools() external view returns (address[] memory) {
         return _pools;
     }
+
+    /**
+     * @dev See {IERC721-transferFrom}.
+     */
+    function transferFrom(address, address, uint256) public virtual override {
+        revert("NFTWrapper: transferFrom is disabled");
+    }
+
+    /**
+     * @dev See {IERC721-safeTransferFrom}.
+     */
+    function safeTransferFrom(address, address, uint256) public virtual override {
+        revert("NFTWrapper: safeTransferFrom is disabled");
+    }
+
+    /**
+     * @dev See {IERC721-safeTransferFrom}.
+     */
+    function safeTransferFrom(address, address, uint256, bytes memory) public virtual override {
+        revert("NFTWrapper: safeTransferFrom is disabled");
+    }
 }
