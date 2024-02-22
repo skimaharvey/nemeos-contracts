@@ -750,7 +750,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
     function depositAndVote(
         address receiver_,
         uint256 dailyInterestRate_
-    ) external payable returns (uint256) {
+    ) external payable nonReentrant returns (uint256) {
         /* check that msg.value is not 0 */
         require(msg.value > 0, "Pool: msg.value is 0");
 
@@ -920,6 +920,38 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         _spendAllowance(from, spender, amount);
         _transfer(from, to, amount);
         return true;
+    }
+
+    /** @dev Modified version of {IERC4626-withdraw}
+     * Added the reentrancy guard.
+     */
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public virtual override nonReentrant returns (uint256) {
+        require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
+
+        uint256 shares = previewWithdraw(assets);
+        _withdraw(_msgSender(), receiver, owner, assets, shares);
+
+        return shares;
+    }
+
+    /** @dev See {IERC4626-redeem}.
+     * Added the reentrancy guard.
+     */
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) public virtual override nonReentrant returns (uint256) {
+        require(shares <= maxRedeem(owner), "ERC4626: redeem more than max");
+
+        uint256 assets = previewRedeem(shares);
+        _withdraw(_msgSender(), receiver, owner, assets, shares);
+
+        return assets;
     }
 
     /** @dev Modified version of {IERC4626-_deposit}
