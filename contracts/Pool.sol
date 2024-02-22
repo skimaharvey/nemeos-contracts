@@ -268,7 +268,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         /* check if the NFT is valid and the price is correct (NFTFilter) */
         require(
             INFTFilter(nftFilter).verifyLoanValidity(
-                collectionAddress_,
                 tokenId_,
                 priceOfNFT_,
                 nftFloorPrice_,

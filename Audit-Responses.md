@@ -15,3 +15,9 @@ Overrided `transferFrom` and applied the vesting logic there
 Overrided `transfer` and applied the vesting logic there
 
 # NEM 5
+
+Removed `collectionAddress_` and usig `msg.sender` instead
+
+# NEM 6
+
+Made `NFT` a `non-transferable` token

@@ -71,7 +71,6 @@ contract NFTFilter is INFTFilter {
      * @dev see {INFTFilter-verifyLoanValidity}
      */
     function verifyLoanValidity(
-        address collectionAddress_,
         uint256 nftID_,
         uint256 priceOfNFT_,
         uint256 nftFloorPrice_,
@@ -102,7 +101,7 @@ contract NFTFilter is INFTFilter {
             keccak256(
                 abi.encodePacked(
                     block.chainid,
-                    collectionAddress_,
+                    msg.sender,
                     nftID_,
                     priceOfNFT_,
                     nftFloorPrice_,

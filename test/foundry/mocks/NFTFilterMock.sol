@@ -12,7 +12,6 @@ contract NFTFilterMock is NFTFilter {
 
     /* override verifyLoanValidity so that it returns true*/
     function verifyLoanValidity(
-        address,
         uint256,
         uint256,
         uint256,

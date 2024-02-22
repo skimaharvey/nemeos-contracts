@@ -88,7 +88,6 @@ interface INFTFilter {
 
     /**
      * @notice Verify the validity of a loan
-     * @param collectionAddress_ Address of the collection
      * @param nftID_ ID of the NFT
      * @param priceOfNFT_ Price of the NFT
      * @param nftFloorPrice_ Floor price of the NFT
@@ -101,7 +100,6 @@ interface INFTFilter {
      * @return isValid True if the loan is valid
      */
     function verifyLoanValidity(
-        address collectionAddress_,
         uint256 nftID_,
         uint256 priceOfNFT_,
         uint256 nftFloorPrice_,
