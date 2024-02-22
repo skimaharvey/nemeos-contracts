@@ -25,3 +25,7 @@ Made `NFT` a `non-transferable` token
 # NEM 7
 
 See `Nemeos_floor.pdf`for the floor calculation
+
+# Nem 8
+
+Aknowledged. Extremely unlikely considering a `SLOAD`cost 5k and max block limit is over 30M.
