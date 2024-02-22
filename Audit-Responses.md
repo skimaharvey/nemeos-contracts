@@ -69,3 +69,7 @@ Aknowledged. We are not using `Clone2` so pools should not be deployed at the sa
 # Nem 18
 
 Aknowledged.
+
+# Nem 19
+
+Aknowledged.
