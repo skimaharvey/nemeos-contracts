@@ -41,3 +41,9 @@ Transfered the excess amount back to the sender
 # Nem 11
 
 Not valid anymore as we are now passing `msg.sender` to the signature
+
+# Nem 12
+
+We can not do that as we needed to turn some variables from `private` to `internal`.
+
+# Nem 13
