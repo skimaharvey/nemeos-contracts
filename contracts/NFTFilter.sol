@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.20;
+pragma solidity 0.8.19;
 
 // libraries
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -122,7 +122,7 @@ contract NFTFilter is INFTFilter {
 
         /* emit event */
         emit LoanVerified(
-            collectionAddress_,
+            msg.sender, // pool
             nftID_,
             priceOfNFT_,
             priceIncludingFees_,

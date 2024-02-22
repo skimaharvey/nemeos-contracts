@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.20;
+pragma solidity 0.8.19;
 
 // interfaces
 import {IDutchAuctionLiquidator} from "./interfaces/IDutchAuctionLiquidator.sol";
@@ -9,13 +9,12 @@ import {IPool} from "./interfaces/IPool.sol";
 //  libraries
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title Dutch Auction liquidated Liquidator
  * @author Nemeos
  */
-contract DutchAuctionLiquidator is ReentrancyGuard, Initializable, IDutchAuctionLiquidator {
+contract DutchAuctionLiquidator is ReentrancyGuard, IDutchAuctionLiquidator {
     /**************************************************************************/
     /* State */
     /**************************************************************************/
