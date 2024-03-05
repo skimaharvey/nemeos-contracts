@@ -224,7 +224,6 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
      * @dev see {IPool-buyNFT}
      */
     function buyNFT(
-        address collectionAddress_,
         uint256 tokenId_,
         uint256 priceOfNFT_,
         uint256 nftFloorPrice_,
@@ -280,9 +279,11 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
             "Pool: NFT loan not accepted"
         );
 
+        address collectionAddressVar = nftCollection;
+
         /* buy the NFT */
         ISettlementManager(settlementManager_).executeBuy{value: priceOfNFT_}(
-            collectionAddress_,
+            collectionAddressVar,
             tokenId_,
             orderExtraData_
         );
@@ -291,7 +292,7 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         INFTWrapper(wrappedNFT).mint(tokenId_, msg.sender);
 
         emit LoanStarted(
-            collectionAddress_,
+            collectionAddressVar,
             tokenId_,
             msg.sender,
             priceOfNFT_,
