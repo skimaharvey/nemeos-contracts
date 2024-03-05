@@ -124,7 +124,7 @@ contract DutchAuctionLiquidator is ReentrancyGuard, IDutchAuctionLiquidator {
         );
 
         /* Transfer bid amount to pool */
-        IPool(liquidation.pool).refundFromLiquidation{value: msg.value}(
+        IPool(liquidation.pool).refundFromLiquidation{value: currentPrice}(
             liquidation.tokenId,
             liquidation.borrower
         );
