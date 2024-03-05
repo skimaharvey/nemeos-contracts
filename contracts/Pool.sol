@@ -992,6 +992,10 @@ contract Pool is ERC4626Upgradeable, ReentrancyGuard, IPool {
         /* check that vesting time is respected */
         require(block.timestamp >= vestingTimeOfLender[owner], "Pool: vesting time not respected");
 
+        if (caller != owner) {
+            _spendAllowance(owner, caller, shares);
+        }
+
         /* update the vesting time for lender */
         _updateDailyInterestRateOnWithdrawal(balanceOf(owner), owner);
 
