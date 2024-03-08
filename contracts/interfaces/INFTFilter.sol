@@ -67,6 +67,12 @@ interface INFTFilter {
     function oracle() external view returns (address);
 
     /**
+     * @notice Get the pool factory address
+     * @return poolFactory Pool factory address
+     */
+    function poolFactory() external view returns (address);
+
+    /**
      * @notice Get the protocol admin address
      * @return protocolAdmin Protocol admin address
      */

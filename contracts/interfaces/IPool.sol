@@ -155,7 +155,6 @@ interface IPool {
 
     /**
      * @notice Initiate the loan of an NFT
-     * @param collectionAddress Address of the NFT collection
      * @param tokenId ID of the NFT
      * @param priceOfNFT Price of the NFT
      * @param nftFloorPrice Floor price of the NFT
@@ -167,7 +166,6 @@ interface IPool {
      * @param oracleSignature Signature of the oracle
      */
     function buyNFT(
-        address collectionAddress,
         uint256 tokenId,
         uint256 priceOfNFT,
         uint256 nftFloorPrice,

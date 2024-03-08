@@ -6,6 +6,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // interfaces
 import {INFTFilter} from "./interfaces/INFTFilter.sol";
+import {IPoolFactory} from "./interfaces/IPoolFactory.sol";
 
 /**
  * @title NFTFilter
@@ -33,6 +34,11 @@ contract NFTFilter is INFTFilter {
     address public oracle;
 
     /**
+     * @dev see {INFTFilter-poolFactory}
+     */
+    address public immutable poolFactory;
+
+    /**
      * @dev see {INFTFilter-protocolAdmin}
      */
     address public immutable protocolAdmin;
@@ -49,11 +55,13 @@ contract NFTFilter is INFTFilter {
     constructor(
         address oracle_,
         address protocolAdmin_,
-        address[] memory supportedSettlementManagers_
+        address[] memory supportedSettlementManagers_,
+        address poolFactory_
     ) {
         oracle = oracle_;
         protocolAdmin = protocolAdmin_;
         supportedSettlementManagers = supportedSettlementManagers_;
+        poolFactory = poolFactory_;
     }
 
     /**************************************************************************/
@@ -93,6 +101,8 @@ contract NFTFilter is INFTFilter {
             }
         }
         require(isSupportedSettlementManager, "NFTFilter: Settlement Manager not supported");
+
+        require(IPoolFactory(poolFactory).isPool(msg.sender), "NFTFilter: Caller is not a pool");
 
         /* get customer nonce and increase it by one*/
         uint256 nonce = customerNonces[customerAddress_]++;
