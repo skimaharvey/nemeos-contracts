@@ -111,6 +111,7 @@ contract NFTFilter is INFTFilter {
             keccak256(
                 abi.encodePacked(
                     block.chainid,
+                    address(this),
                     msg.sender,
                     nftID_,
                     priceOfNFT_,
