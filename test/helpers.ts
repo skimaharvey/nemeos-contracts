@@ -151,7 +151,6 @@ export async function buyNFTHelper(
   const tx = await poolProxy
     .connect(borrower)
     .buyNFT(
-      collecttionAddress,
       offerIdentifier,
       nftPrice,
       nftFllorPrice,
